@@ -6,7 +6,7 @@ assignment. Branch: `main`. Last verified live: **full suite 14 passed**
 
 **Bottom line:** all Tasks, Requirements, Evaluation Criteria, the CI Pipeline
 Requirement (incl. bonus), and the Claude Code Usage requirements are **met**.
-No required changes outstanding. Two *optional* enhancements are noted at the end.
+No required changes outstanding.
 
 ---
 
