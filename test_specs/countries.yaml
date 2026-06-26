@@ -1,0 +1,75 @@
+# Declarative spec for the `countries` environment (REST Countries v5).
+#
+# Replaces the hand-written tests/countries/test_countries.py. Exercises the
+# engine's richer features: offset pagination (25/page), the {data:{objects}}
+# envelope unwrap, a custom-rule escape hatch for the population invariants, and
+# a two-step chained flow (name -> region -> membership) via save/${vars}.
+#
+# Schema validation still lives in src/validators/country.py (referenced by name);
+# the conditional population rules live in src/spec/custom_checks.py.
+
+environment: countries
+
+checks:
+  - name: Europe region returns more than the minimum number of countries
+    request:
+      path: region/europe
+      params:
+        response_fields: names.common
+      paginate:
+        style: offset
+        param: offset
+        page_size: 25
+        unwrap: "$.data.objects"
+    asserts:
+      # MIN_EUROPE_COUNTRIES — an intrinsic property of the data (v5 returns 54),
+      # not an environment threshold, so it stays a literal in the spec.
+      - path: "$"
+        length_gt: 40
+
+  - name: Germany record matches the country schema contract
+    request:
+      path: names.common/germany
+    validator: CountryValidator
+    unwrap: "$.data.objects"
+    validate: first
+    asserts:
+      # YAML-driven floor for the name lookup.
+      - path: "$.data.objects"
+        length_gte: "${env.min_results_count}"
+
+  - name: Every inhabited country has a positive population
+    request:
+      path: ""                       # base path = the "all" collection
+      params:
+        response_fields: "names.common,population,capitals"
+      paginate:
+        style: offset
+        param: offset
+        page_size: 25
+        unwrap: "$.data.objects"
+    asserts:
+      - path: "$"
+        length_gte: "${env.min_results_count}"
+    custom:
+      # population non-negative for all; strictly > 0 for any country with a capital.
+      - countries_population_rules
+
+  - name: A country found by name appears within its own region
+    steps:
+      - request:
+          path: names.common/germany
+        save:
+          common: "$.data.objects.0.names.common"
+          region: "$.data.objects.0.region"
+      - request:
+          path: "region/${vars.region|lower}"
+          params:
+            response_fields: names.common
+          paginate:
+            style: offset
+            param: offset
+            page_size: 25
+            unwrap: "$.data.objects"
+        custom:
+          - country_appears_in_region

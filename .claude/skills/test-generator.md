@@ -1,57 +1,70 @@
 # Skill: test-generator
 
-Generate a complete pytest test file for an endpoint in **this** framework,
-following its rules and reusing its fixtures.
+Generate **declarative test specs** for an endpoint in *this* framework's
+spec-driven layout. Tests here are not Python — they are YAML checks in
+`test_specs/<environment>.yaml`, executed by the single generic runner
+(`tests/test_spec_runner.py`). This skill emits spec checks (not a pytest file),
+reusing the framework's fixtures, validators, and gate.
 
 ## Inputs
 - `environment`: `countries` | `weather` (must exist in `config/environments.yaml`)
 - `endpoint_path`: path relative to the environment `base_url`, e.g. `region/europe`
-- `method`: HTTP method (currently `GET`; the client exposes `.get`)
-- `response_fields`: the fields the response is expected to contain
-- `cases` (optional): name of a `test_data/*.json` file to parametrize from
+- `method`: HTTP method (currently `GET`; the runner/client are GET-only)
+- `response_fields` **or** a sample JSON response: what the response should contain
+- `cases` (optional): a `test_data/*.json` file to parametrize from
+- `rules` (optional): min counts, value ranges, cross-references, pagination
 
 ## Output
-A file at `tests/<environment>/test_<name>.py` that:
-1. Has a module docstring and `from __future__ import annotations`.
-2. Marks every test with `@pytest.mark.<environment>`.
-3. Uses the shared fixtures — `api_client`, `env`, `assert_within_threshold` —
-   and **never** hardcodes the base URL or thresholds.
-4. Calls `api_client.<method>(endpoint_path, params=...)`, asserts the status
-   code, then calls `assert_within_threshold(response, what="...")`.
-5. Delegates all schema/type checks to a validator in `src/validators/` (calls
-   `validator-generator` first if one does not exist). No inline schema asserts.
-6. Generates **positive** tests (valid request → valid schema, counts, gate) and
-   **negative** tests (e.g. unknown resource → non-2xx, or empty/garbage input
-   handled gracefully).
-7. If `cases` is given, loads them with a `load_*()` helper and parametrizes via
-   `pytest.param(..., id=<case name>)` — never inline data.
-8. Adds Allure decorators: `@allure.feature(<Environment>)`, `@allure.title(...)`.
+One or more `checks:` entries appended to `test_specs/<environment>.yaml` that:
+1. Set `request.path` (and `params`), and `expect_status` (the explicit status
+   assertion — default `200`). The response-time gate is applied automatically
+   by the runner; no per-check wiring needed.
+2. **Delegate schema/type checks to a validator** referenced by class name
+   (`validator: <Name>`); if none exists, call `validator-generator` first. Use
+   `unwrap` to point the validator at a nested object/list and `validate`
+   (`single`/`each`/`first`) to choose how.
+3. Add **declarative assertions** (`asserts:`) from the vocabulary in
+   `src/spec/asserts.py` (`equals`, `gt/gte/lt/lte`, `length_gte`, `approx`+`tol`,
+   `type`, `non_empty`, `contains`) rather than inline Python.
+4. Generate **positive** checks (valid request → schema, counts, gate) **and
+   negative** checks (e.g. an unknown resource → `expect_status: 404`).
+5. For data-driven cases, set `cases: <file>` + `case_id:` and reference
+   `${case.*}` — never inline test data.
+6. For **list/collection** endpoints, use `paginate:` and assert
+   `length_gte: "${env.min_results_count}"` (keeps the gate YAML-driven).
+7. For **cross-references**, use a multi-step `steps:` flow with `save:` and
+   `${vars.*}`; put any procedural rule in a named `custom:` check
+   (`src/spec/custom_checks.py`).
 
 ## Rules to honor
-- `.claude/rules/testing-standards.md`, `code-style.md`, `framework-rules.md`.
+- `.claude/rules/testing-standards.md`, `code-style.md`, `framework-rules.md`
+  (parametrize from JSON; schema checks via `src/validators/`; thresholds from
+  YAML; the gate is enforced centrally by the runner).
+- Spec format reference: `docs/dsl-spec.md`.
 
 ## Example invocation
-> Generate a countries test for `GET name/{country}` returning
-> `name, capital, population, currencies, languages`, with positive
-> (germany) and negative (a nonexistent name → 404) cases.
+> Generate a `countries` spec for `GET names.common/{country}` validating
+> `names, capitals, population, currencies, languages, region` via
+> `CountryValidator`, with a positive case (germany) and a negative case
+> (a nonexistent name → 404).
 
 ## Skeleton produced
-```python
-"""<Environment> suite: <endpoint> tests."""
-from __future__ import annotations
+```yaml
+# appended to test_specs/<environment>.yaml
+checks:
+  - name: <what this asserts>
+    request:
+      path: <endpoint_path>
+      params: { <k>: <v> }
+    expect_status: 200
+    validator: <Validator>        # optional; from src/validators/
+    unwrap: "$.data.objects"      # optional
+    validate: first               # single | each | first
+    asserts:
+      - { path: "$.population", type: int }
+      - { path: "$.data.objects", length_gte: "${env.min_results_count}" }
 
-import allure
-import pytest
-
-from src.validators.<env_module> import <Validator>
-
-
-@allure.feature("<Environment>")
-@allure.title("<what this asserts>")
-@pytest.mark.<environment>
-def test_<name>(api_client, assert_within_threshold) -> None:
-    response = api_client.get("<endpoint_path>", params={...})
-    assert response.status_code == 200
-    assert_within_threshold(response, what="GET <endpoint_path>")
-    <Validator>().validate(response.json()[0])
+  - name: <negative — unknown resource>
+    request: { path: <endpoint_path>/<bogus> }
+    expect_status: 404
 ```
