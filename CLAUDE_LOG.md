@@ -344,3 +344,37 @@ until the account recovers.
   skips countries and stays green.
 - Several local commits are unpushed (`eabc319`, `9573e31`, `895c54b`, `f138c38`,
   + this log entry).
+
+---
+
+## 2026-06-26 — Session 10: Fix Allure report not publishing on failures
+
+**Summary:** The published GitHub Pages report was stuck showing the last green
+run even after CI started failing (countries 403 from the frozen v5 account).
+Root-caused and fixed so the live report reflects failures too. Also documented
+`gh` secret management in the README.
+
+**Bug & root cause:** the gh-pages publish step (and the history restore/seed
+steps) used a bare `if: github.ref == 'refs/heads/main' && github.event_name ==
+'push'`. GitHub Actions **implicitly ANDs a custom `if:` with `success()`**, so
+once `Run tests` failed, those steps were silently skipped — the site never
+updated and kept displaying the previous passing run (14/14). A user noticed the
+live report showed all-pass despite a red pipeline.
+
+**Fix:** prefixed those three steps' conditions with `always() &&` in
+`.github/workflows/ci.yml`, so the report publishes (with history continuity)
+regardless of test outcome. The test step remains the build gate.
+
+**Verification:** pushed; the run's `Run tests` = failure while `Publish Allure
+report to GitHub Pages` = success; live `widgets/summary.json` now reads
+`4 failed, 10 passed` (was `14 passed`).
+
+**Also:** added a README subsection documenting `gh secret set` (add/update,
+incl. `--body` from `.env`), `gh secret list`, and `gh secret delete` for the
+`RESTCOUNTRIES_API_KEY` CI secret, noting values are write-only (no get) and that
+deleting it makes countries skip (green CI) when the key is unavailable.
+
+**Files changed:** `.github/workflows/ci.yml`, `README.md`.
+
+**State:** `origin/main` up to date (this batch pushed). CI is legitimately red —
+the countries 403s are real (frozen account); the report now tells the truth.
