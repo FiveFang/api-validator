@@ -378,3 +378,26 @@ deleting it makes countries skip (green CI) when the key is unavailable.
 
 **State:** `origin/main` up to date (this batch pushed). CI is legitimately red —
 the countries 403s are real (frozen account); the report now tells the truth.
+
+---
+
+## 2026-06-26 — Session 11: Allure Categories tab investigation (no code change)
+
+**Summary:** Investigated a report that the Allure "Categories" tab showed no
+failures. Root cause was stale browser cache, not a report defect — confirmed by
+the user seeing it correctly in a different browser. No code change.
+
+**What was checked:** the live report's `data/categories.json` and
+`widgets/categories.json` both already contained the 4 countries failures under
+the default "Product defects" category (each an `AssertionError ... got 403`).
+Since the Allure report is a static client-side SPA, the empty tab was a cached
+copy of the earlier all-pass run (when Categories was legitimately empty).
+
+**Noted (not actioned, user declined for now):** we ship no custom
+`categories.json`, so Allure buckets everything by status into the generic
+"Product defects"/"Test defects". A future enhancement could add a
+`categories.json` (copied into `allure-results` before `allure generate`) to
+classify failures by cause — auth/quota (HTTP 401/403), response-time gate
+breaches, schema/validation failures — making the tab more informative.
+
+**Files changed:** none (CLAUDE_LOG only).
