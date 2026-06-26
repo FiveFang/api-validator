@@ -103,7 +103,8 @@ fragmented the report and duplicated CLI wiring. *(Kept the decision.)*
    key `rc_live_demo`; I tested it directly and it returns 401 on every v5 path.
    *Why wrong:* the assumption was stale and the "demo key" was a hallucinated/
    unreliable doc artifact. *Fix:* repointed to v5, made auth token-driven via
-   `RESTCOUNTRIES_TOKEN`, and added a skip-guard so the suite stays green until a
+   `RESTCOUNTRIES_TOKEN` (later renamed to `RESTCOUNTRIES_API_KEY` — see
+   Session 5), and added a skip-guard so the suite stays green until a
    real key is supplied.
 2. **Fresh client per test.** My initial skeleton used a function-scoped
    `APIClient` (a new `requests.Session` per test). On this network the first
@@ -477,3 +478,61 @@ published and now coexist on `gh-pages`:
 **Follow-up:** user may re-enable the "branch-protection" ruleset later (pushes
 to `main` would then require PRs); `ci-trigger-test` and the `add-new-api` demo
 branch are intentionally kept.
+
+---
+
+## 2026-06-26 — Session 14: Extensibility review, P2/P3 fixes, compliance audit, CI gate-breach proof
+
+**Summary:** A multi-strand session spanning several branches/PRs: added a 3rd
+API to prove extensibility, planned intranet-API onboarding, fixed two
+rules-compliance bugs (merged to main), audited the submission against every
+assignment criterion, and *empirically verified* that CI fails on a quality-gate
+breach.
+
+**Work done:**
+- **PokeAPI 3rd environment (PR #2, `add-new-api`).** Probed the live API,
+  generated `PokemonListValidator` + `PokemonValidator`, `test_data/pokemon.json`,
+  and a marked suite (list, parametrized detail, list→detail cross-reference).
+  `--env pokemon` auto-derived from the YAML entry with zero core changes —
+  concrete proof the framework is environment-count-agnostic. 5 passed.
+- **Intranet-API onboarding plan (PR #3, `check-extensibility`).** Design doc
+  `docs/openapi-onboarding-plan.md` for onboarding private APIs Claude can't
+  reach: OpenAPI as the shape source, hand-off verification, single-prompt input,
+  a coverage manifest as *output* + dedup index, a propose checkpoint, and a
+  staged-merge for `environments.yaml` so shared config is never half-written.
+- **P2/P3 fixes (PR #4 — MERGED to main).** P2: route the Germany lookup and
+  `/all` through `env.min_results_count`; weather asserts `hourly_count >=
+  min_results_count` in the test (validator keeps its non-empty schema
+  invariant). `MIN_EUROPE_COUNTRIES` left as intrinsic data. P3: moved the v5
+  envelope validation out of the test into `CountryValidator.unwrap_objects`,
+  deleting the inline-`isinstance` `_objects()` helper. Verified live once the
+  countries key was added: countries 4/4, full suite 14 passed.
+- **`notes.md` untracked + gitignored (pushed to main).** `git rm --cached` +
+  `.gitignore` entry. (Gotcha hit & recovered: switching branches through the
+  deletion commit removed the working-tree copy; restored from history.)
+- **Compliance audit (in `notes.md`, local/gitignored).** Mapped all 7 tasks +
+  Requirements + Evaluation Criteria + CI Requirement to the implementation.
+  5/7 tasks cleanly 100%; Tasks 1 & 3 deviate from the literal brief only because
+  of the documented v3.1→v5 migration. Flagged 2 open gaps (red): vestigial
+  `BaseReporter` with no concrete subclass; test-logic reuse is plumbing-level,
+  not body-level (the 25% criterion).
+- **CI gate-breach verification (PR #5, `ci-gate-breach-test`, DO NOT MERGE).**
+  Proved the pipeline fails on a quality-gate breach. Response-time breach is
+  flaky in CI (runner is network-close → sub-0.1s; and `timeout = 5×threshold`
+  coupling turns a gate breach into a transport timeout) — shown firing locally
+  only. Used a *deterministic* `min_results_count=1e9` breach instead: request
+  succeeds (hourly_count ~168) but the count gate fails. CI run 28260634720 went
+  red on the assertion, and the Allure report still published (`if: always()`).
+
+**Files changed (by branch):**
+- main: `src/validators/country.py`, `tests/countries/test_countries.py`,
+  `tests/weather/test_weather.py` (PR #4); `.gitignore` + untracked `notes.md`.
+- `add-new-api`: `src/validators/pokemon.py`, `tests/pokemon/`, `test_data/pokemon.json`.
+- `check-extensibility`: `docs/openapi-onboarding-plan.md`.
+- `ci-gate-breach-test`: `config/environments.yaml` (throwaway).
+
+**Follow-ups:**
+- Open PRs left on remote: #2 (PokeAPI), #3 (OpenAPI plan), #5 (DO NOT MERGE demo).
+- Circle back on the 2 red gaps in `notes.md`: make `BaseReporter` real (a
+  concrete per-env summary reporter — also nets the CI summary bonus), then a
+  shared `src/runner.py` to lift test-logic reuse to body-level.
