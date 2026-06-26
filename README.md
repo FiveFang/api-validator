@@ -98,6 +98,46 @@ The latest report is published automatically to GitHub Pages:
   warms connections per environment so the gate measures steady-state API
   latency, not one-off DNS/TLS setup.
 
+## Adding a new API / environment
+The framework is environment-count-agnostic: the set of environments is derived
+from config, so onboarding a third (or fourth…) API touches **only** new files —
+the core (`conftest.py`, `client.py`, base classes) stays untouched. Say you want
+to add a `posts` environment for `https://api.example.com/v1`:
+
+1. **Declare it in `config/environments.yaml`** — add an entry under
+   `environments:` with `base_url`, `max_response_time`, `min_results_count`, and
+   (only if the API needs a Bearer token) `auth_token_env: POSTS_API_KEY`:
+   ```yaml
+     posts:
+       base_url: https://api.example.com/v1
+       max_response_time: 2.5
+       min_results_count: 1
+   ```
+   This alone makes `--env posts` a valid choice and registers the `posts`
+   marker — no change to the selection machinery.
+
+2. **Add a validator** in `src/validators/posts.py` extending `BaseValidator`
+   (declare `required_fields` / `field_types`, override `validate_custom` for
+   business rules). The `.claude/skills/validator-generator` skill can scaffold
+   this from a sample JSON response.
+
+3. **Add a test suite** under `tests/posts/test_posts.py`. Every test must:
+   - carry `@pytest.mark.posts`,
+   - use the shared `api_client`, `env`, and `assert_within_threshold` fixtures
+     (never hardcode URLs/thresholds or call `requests` directly),
+   - delegate schema checks to your validator, and
+   - parametrize any data-driven cases from `test_data/*.json`.
+   The `.claude/skills/test-generator` skill scaffolds a compliant file.
+
+4. **(If authenticated) provide the token** — set the env var named by
+   `auth_token_env` locally (e.g. in `.env`) and add a matching repository
+   secret for CI. Without it, that environment's tests skip (CI stays green).
+
+That's everything. `pytest` (or `--env all`) now runs the new suite alongside
+the others, `--env posts` runs just it, the response-time gate and Allure
+per-environment section apply automatically, and CI picks it up with no workflow
+change. See `.claude/rules/framework-rules.md` for the binding constraints.
+
 ## CI
 `.github/workflows/ci.yml` triggers on push to any branch (and PRs): sets up
 Python, installs dependencies, runs the full suite, **fails on any test failure

@@ -401,3 +401,35 @@ classify failures by cause — auth/quota (HTTP 401/403), response-time gate
 breaches, schema/validation failures — making the tab more informative.
 
 **Files changed:** none (CLAUDE_LOG only).
+
+---
+
+## 2026-06-26 — Session 12: PR-trigger check, Node 24 bump, onboarding docs
+
+**Summary:** Verified CI triggers on PRs, cleared the Node.js 20 deprecation
+warnings, and added a README guide for onboarding new APIs.
+
+**CI trigger verification:** Confirmed (from `on: push: ['**']` + `pull_request`)
+and proved live that a new branch fires CI on both the branch push *and* the PR
+open — created a throwaway branch + PR #1 and observed two runs (one `push`, one
+`pull_request`), both failing only on the countries 403s. Note: this means
+PR'd branches get duplicate runs; PR-from-fork would skip countries (no secret).
+(Throwaway branch `ci-trigger-test` / PR #1 left open intentionally — user will
+clean up later.)
+
+**Node.js 20 deprecation fix:** Every `actions/*` step warned "Node.js 20 is
+deprecated … forced to run on Node.js 24". Bumped each to the first major that
+ships a node24 runtime (verified via each tag's `action.yml` `runs.using`):
+`checkout` v4→v5, `setup-python` v5→v6, `setup-java` v4→v5, `upload-artifact`
+v4→**v6** (v5 was still node20). `peaceiris/actions-gh-pages@v4` was already
+node24 (hence never flagged). Verified post-push: the run's annotations no longer
+mention Node.
+
+**README onboarding section:** Added "Adding a new API / environment" — the
+4-step recipe (YAML entry → validator → marked test suite using shared fixtures →
+optional token/secret) showing the core stays untouched, cross-referencing the
+two `.claude/skills` and `framework-rules.md`.
+
+**Files changed:** `.github/workflows/ci.yml`, `README.md`.
+
+**Follow-up:** clean up throwaway PR #1 / `ci-trigger-test` branch when convenient.
