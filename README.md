@@ -105,6 +105,32 @@ or quality-gate breach**, prints a test summary to the job output, and uploads
 the Allure report (and JUnit XML) as artifacts. Set a `RESTCOUNTRIES_API_KEY`
 repository secret to enable the countries suite in CI.
 
+### Managing the `RESTCOUNTRIES_API_KEY` CI secret (GitHub CLI)
+The workflow reads `${{ secrets.RESTCOUNTRIES_API_KEY }}`. Manage it with `gh`
+(authenticate first with `gh auth login`):
+
+```bash
+# Add or update the secret (interactive prompt — value is not echoed/stored in shell history)
+gh secret set RESTCOUNTRIES_API_KEY --repo FiveFang/api-validator
+
+# Set it non-interactively from your local .env (or any source), avoiding shell history
+gh secret set RESTCOUNTRIES_API_KEY --repo FiveFang/api-validator --body "$RESTCOUNTRIES_API_KEY"
+
+# List configured secrets (names and update times only — values are never shown)
+gh secret list --repo FiveFang/api-validator
+
+# Delete the secret (countries tests then SKIP in CI instead of failing)
+gh secret delete RESTCOUNTRIES_API_KEY --repo FiveFang/api-validator
+```
+
+Notes:
+- `gh secret set` both **creates and updates** — re-running it rotates the value.
+- Secret **values are write-only**: GitHub never lets you read them back, so
+  there is no "get" command — only set/list/delete.
+- Omit `--repo <owner>/<name>` to target the repository in the current directory.
+- Deleting the secret is the quick way to make CI green when the key is
+  unavailable (e.g. frozen/quota-exhausted): countries skip rather than fail.
+
 ## Design decisions & assumptions
 - **"Zero hardcoded values"** is interpreted as *environment/config* values
   (base URLs, response-time and result-count thresholds) living only in YAML.
