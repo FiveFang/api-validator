@@ -31,3 +31,10 @@ environments:
     base_url: https://api.open-meteo.com/v1
     max_response_time: 3.0
     min_results_count: 1
+
+  # PokeAPI — free, public, no-auth REST API. Rich schema + list endpoints make
+  # it a good third environment. Very low latency, so 2.0s is a generous gate.
+  pokemon:
+    base_url: https://pokeapi.co/api/v2
+    max_response_time: 2.0
+    min_results_count: 1

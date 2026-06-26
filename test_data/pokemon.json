@@ -1,0 +1,8 @@
+{
+  "list_limit": 20,
+  "pokemon": [
+    { "name": "pikachu", "expected_id": 25 },
+    { "name": "bulbasaur", "expected_id": 1 },
+    { "name": "charizard", "expected_id": 6 }
+  ]
+}
