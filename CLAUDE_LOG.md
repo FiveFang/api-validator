@@ -536,3 +536,44 @@ breach.
 - Circle back on the 2 red gaps in `notes.md`: make `BaseReporter` real (a
   concrete per-env summary reporter — also nets the CI summary bonus), then a
   shared `src/runner.py` to lift test-logic reuse to body-level.
+
+---
+
+## 2026-06-26 — Session 15: Full compliance audit, concrete BaseReporter (gap 1), DSL exploration (backup, not merged)
+
+**Summary:** Audited the submission against every assignment section (all met),
+closed an abstraction gap with a real `BaseReporter`, and explored — then
+deliberately shelved — a full declarative-spec DSL on a separate branch.
+
+**Work done:**
+- **Compliance audit + report.** Verified every assignment section against the
+  live repo — Tasks 1–7, Requirements, Evaluation Criteria, CI Pipeline (incl.
+  bonus), and Claude Code Usage — all met. Captured in a new
+  `ASSIGNMENT_COMPLIANCE.md` (status + evidence per item; documents the v3.1→v5
+  deviations).
+- **Gap 1 — concrete `BaseReporter`.** The contract previously had no
+  implementation (satisfied only vacuously). Added `EnvironmentSummaryReporter`
+  (`src/reporters/summary.py`) and wired it in `conftest.py`:
+  `pytest_runtest_logreport` records each outcome by environment (resolved from
+  the marker), `pytest_terminal_summary` prints a per-env passed/failed/skipped
+  breakdown to the terminal and CI job output. Verified: 14 passed with the
+  per-env summary; skip path recorded (4 skipped without the key).
+- **DSL exploration — separate branch, NOT merged.** Built a working
+  declarative-spec engine (`src/spec/`, `test_specs/`, one generic runner) on
+  `feature/api-agnostic-dsl` (PR #6) that makes the *tests themselves*
+  API-agnostic: both environments converted (14 passed), and `test-generator`
+  updated to emit specs. **Decision: keep it as a backup, not the submission.**
+  At 2–3 APIs a DSL is over-engineering — a config language to learn, harder to
+  debug, and it only pays off with many similar APIs; plain pytest on the shared
+  core is the better trade. A deliberate "knew when not to over-engineer" call;
+  the branch stays as a presentable backup.
+- Identified a 2nd optional gap (test-logic reuse is plumbing-level, not
+  body-level / the 25% criterion); left it intentionally — the DSL backup already
+  demonstrates that direction.
+
+**Files changed (main):** `src/reporters/summary.py` (new), `conftest.py`,
+`README.md` (Reporting note), `ASSIGNMENT_COMPLIANCE.md` (new).
+
+**Follow-ups:**
+- Optional gap 2 (shared `src/runner.py` reuse helper) intentionally not done.
+- DSL backup lives on `feature/api-agnostic-dsl` / PR #6 if ever wanted.
