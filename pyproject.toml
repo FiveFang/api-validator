@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "api-validator"
+version = "0.1.0"
+description = "Multi-environment, YAML-driven API consistency test framework"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+# rootdir-anchored so `src` imports resolve and config is found from any CWD.
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "countries: test targets the 'countries' environment (REST Countries)",
+    "weather: test targets the 'weather' environment (Open-Meteo)",
+]
