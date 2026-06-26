@@ -433,3 +433,41 @@ two `.claude/skills` and `framework-rules.md`.
 **Files changed:** `.github/workflows/ci.yml`, `README.md`.
 
 **Follow-up:** clean up throwaway PR #1 / `ci-trigger-test` branch when convenient.
+
+---
+
+## 2026-06-26 — Session 13: Add PokeAPI (pokemon) environment
+
+**Summary:** Added a third environment — `pokemon` (PokeAPI,
+`https://pokeapi.co/api/v2`, no auth) — exercising the framework's "add an API
+without touching the core" design. YAML entry was pre-added by the user; this
+session added the validator + marked test suite + test data and ran it green.
+
+**Work done:**
+- Probed the live API to learn the shape: `/pokemon?limit=20` returns
+  `{count, next, previous, results:[{name,url}]}`; `/pokemon/{name}` returns a
+  large object whose contracted fields are scalar `id/name/height/weight` (ints
+  + str) plus `types`/`abilities`/`stats` lists of `{<key>:{name,url}}` refs.
+  (Note: PokeAPI 403s urllib's default User-Agent but accepts `requests`' UA, so
+  the shared `APIClient` works unmodified — no core change.)
+- `src/validators/pokemon.py`: `PokemonListValidator` (envelope + `{name,url}`
+  stubs, with a `names()` helper) and `PokemonValidator` (scalars via class
+  attrs; `types`/`abilities`/`stats` non-empty + nested-ref checks in
+  `validate_custom`).
+- `test_data/pokemon.json`: `list_limit` + parametrized pokemon (pikachu,
+  bulbasaur, charizard) with expected ids — no cases inlined in the test.
+- `tests/pokemon/test_pokemon.py` (`@pytest.mark.pokemon`): list endpoint
+  (count>0, `len>=min_results_count` from YAML, `<=limit`), parametrized detail
+  schema (asserts echoed name + documented id), and a cross-reference test
+  (name from the live list resolves at `/pokemon/{name}`).
+- Verified `--env` auto-derived `{countries,weather,pokemon,all}` from config
+  with zero changes to `conftest.py`/`src` core.
+
+**Result:** `pytest --env pokemon -v` → 5 passed, 14 deselected. Full collection
+19 tests, no regressions.
+
+**Files changed:** `src/validators/pokemon.py` (new),
+`tests/pokemon/test_pokemon.py` (new), `test_data/pokemon.json` (new).
+`config/environments.yaml` (pokemon entry, pre-added by user).
+
+**Note:** On branch `add-new-api`; per user, not merging to main for now.
