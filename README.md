@@ -67,6 +67,9 @@ were renamed (`name`→`names`, `capital`→`capitals`, and `currencies`/`langua
 are now lists) — the validator and tests are calibrated to this shape.
 
 ## Running tests
+Tests live as declarative specs in `test_specs/<env>.yaml` (no per-API Python);
+the generic runner `tests/test_spec_runner.py` executes them under plain
+`pytest` — the commands are unchanged:
 ```bash
 pytest                  # all environments (default; same as --env all)
 pytest --env weather    # weather only
