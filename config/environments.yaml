@@ -30,4 +30,7 @@ environments:
   weather:
     base_url: https://api.open-meteo.com/v1
     max_response_time: 3.0
-    min_results_count: 1
+    # TEMP (ci-gate-breach-test): impossibly high min so the result-count gate
+    # breaches DETERMINISTICALLY (real hourly_count ~168 < this), independent of
+    # network speed — confirms CI fails on a YAML quality-gate breach. Revert to 1.
+    min_results_count: 1000000000
