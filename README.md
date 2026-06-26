@@ -74,6 +74,18 @@ Allure *parent suite* label, so the report has a clear section per environment.
 The latest report is published automatically to GitHub Pages:
 **https://fivefang.github.io/api-validator/**
 
+#### Per-branch report previews
+CI publishes a separate report for every branch it builds:
+- **`main`** → the site root: **https://fivefang.github.io/api-validator/**
+- **any other branch** → a preview folder at
+  `https://fivefang.github.io/api-validator/preview/<branch-name>/`
+
+So a push to a branch named `add-new-api` is browsable at
+**https://fivefang.github.io/api-validator/preview/add-new-api/**. Previews and
+the root report coexist (`keep_files: true`), so a branch build never clobbers
+the canonical `main` report or another branch's preview — each publish only
+overwrites its own subtree. Only the `main` report accumulates trend history.
+
 ## Interpreting results
 - **Passed** — endpoint returned the expected status, the response matched the
   validator's schema/range contract, and the request completed within the
@@ -177,8 +189,10 @@ structure before generating (as was done for REST Countries v5 and Open-Meteo).
 `.github/workflows/ci.yml` triggers on push to any branch (and PRs): sets up
 Python, installs dependencies, runs the full suite, **fails on any test failure
 or quality-gate breach**, prints a test summary to the job output, and uploads
-the Allure report (and JUnit XML) as artifacts. Set a `RESTCOUNTRIES_API_KEY`
-repository secret to enable the countries suite in CI.
+the Allure report (and JUnit XML) as artifacts. It also publishes the HTML
+report to GitHub Pages — `main` to the site root, other branches to
+`preview/<branch>/` (see [Per-branch report previews](#per-branch-report-previews)).
+Set a `RESTCOUNTRIES_API_KEY` repository secret to enable the countries suite in CI.
 
 ### Managing the `RESTCOUNTRIES_API_KEY` CI secret (GitHub CLI)
 The workflow reads `${{ secrets.RESTCOUNTRIES_API_KEY }}`. Manage it with `gh`
