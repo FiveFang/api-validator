@@ -23,6 +23,18 @@ environments.
 - **Every reporter must extend `BaseReporter`** (`src/reporters/base.py`) and
   implement `record()` and `summary()`. Primary reporting is Allure via
   `allure-pytest`; custom summaries plug in through `BaseReporter`.
+- **Allure environment sections:** The framework must dynamically group tests in
+  the Allure report by their environment, producing a separate section per
+  environment. This grouping is applied centrally — not per test — by the `env`
+  fixture in the top-level `conftest.py`, which resolves the environment from the
+  test's marker and calls `allure.dynamic.parent_suite(env.name)` (the Suites-tab
+  section) plus `allure.dynamic.label("environment", env.name)`. Tests must not
+  set their own `parent_suite`/`environment` labels; environment grouping is the
+  fixture's responsibility.
+- Tests *may* still use `@allure.feature(...)`/`@allure.title(...)` for
+  human-readable, test-area labelling (e.g. "Weather forecast") — these describe
+  *what* a test covers and are complementary to, not a substitute for, the
+  fixture-driven environment grouping above.
 
 ## Validators
 - All validators extend `BaseValidator` and live in `src/validators/`
