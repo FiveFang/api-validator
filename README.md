@@ -122,3 +122,11 @@ repository secret to enable the countries suite in CI.
   countries that have a capital.
 - **Open-Meteo** returns grid-snapped coordinates and resolves `timezone=auto`
   to a real IANA name; tests allow a 1° coordinate tolerance accordingly.
+- **Test status philosophy.** The `--env` flag *deselects* the non-matching
+  environment's tests during collection (via `pytest_deselected` in
+  `conftest.py`), so a targeted run reports e.g. `10 passed, 4 deselected` —
+  deselected tests are excluded from the run rather than executed-and-skipped.
+  `Skipped` is reserved for a distinct case: an environment that requires an
+  auth token (e.g. `countries` without `RESTCOUNTRIES_API_KEY`) is skipped at
+  runtime so CI stays green. Both are intentional and non-failing; the default
+  `pytest` run (no `--env`) executes every environment.

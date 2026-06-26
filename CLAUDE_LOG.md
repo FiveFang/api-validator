@@ -264,3 +264,31 @@ fixture's `parent_suite` label, left untouched.
 - Set the `RESTCOUNTRIES_API_KEY` repo secret so the countries suite runs (not
   skips) in CI and appears in the published report.
 - Optionally add a live-report link to the README.
+
+---
+
+## 2026-06-25 — Session 8: Docs consistency pass
+
+**Summary:** Set the v5 repo secret (countries now run in CI — live report shows
+14 passed, 0 skipped), added the live Allure link + CI badge to the README, and
+resolved two doc inconsistencies the user spotted.
+
+**Doc fixes (user-caught inconsistencies):**
+1. **Timing ownership contradiction across `.claude/rules/`.** `testing-standards.md`
+   said "every test must call `assert_within_threshold`" while `code-style.md`
+   said "the client owns ... timing". Checked the code: `APIClient` *measures*
+   time (`TimedResponse.elapsed_seconds`) and owns the request timeout; the
+   `assert_within_threshold` gate (conftest) *enforces* `max_response_time` and is
+   called by tests. Reworded both files to state measurement vs enforcement and
+   cross-link them. *(Single consistent design now documented.)*
+2. **README `--env` status description vs code.** The README's "Test status
+   philosophy" claimed `--env`-filtered tests are marked *Skipped*, but the code
+   uses `pytest_deselected` (a targeted run reports `10 passed, 4 deselected`).
+   Corrected the README to describe deselection, and clarified that `Skipped` is
+   reserved for the missing-auth-token case. Behavior unchanged; docs now match.
+
+**Files changed:** `.claude/rules/testing-standards.md`,
+`.claude/rules/code-style.md`, `README.md`.
+
+**Verification:** live report `widgets/summary.json` → 14 passed / 0 skipped
+(weather 10, countries 4); both per-environment sections intact.
