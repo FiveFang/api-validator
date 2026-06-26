@@ -1,5 +1,10 @@
 # api-validator
 
+[![CI](https://github.com/FiveFang/api-validator/actions/workflows/ci.yml/badge.svg)](https://github.com/FiveFang/api-validator/actions/workflows/ci.yml)
+
+📊 **Live Allure report:** https://fivefang.github.io/api-validator/
+(published to GitHub Pages on every push to `main`, with accumulating trend history)
+
 A multi-environment, **YAML-driven** API consistency test framework. The same
 API-agnostic infrastructure (HTTP client, validators, response-time gate,
 reporting) runs against two independent "environments":
@@ -65,6 +70,9 @@ allure serve allure-results          # requires the Allure CLI
 ```
 Each test is grouped under its environment (`countries` / `weather`) via an
 Allure *parent suite* label, so the report has a clear section per environment.
+
+The latest report is published automatically to GitHub Pages:
+**https://fivefang.github.io/api-validator/**
 
 ## Interpreting results
 - **Passed** — endpoint returned the expected status, the response matched the
