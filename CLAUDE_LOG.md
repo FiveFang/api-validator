@@ -292,3 +292,55 @@ resolved two doc inconsistencies the user spotted.
 
 **Verification:** live report `widgets/summary.json` → 14 passed / 0 skipped
 (weather 10, countries 4); both per-environment sections intact.
+
+---
+
+## 2026-06-26 — Session 9: Rule reconciliations, extensibility, frozen account
+
+**Summary:** A review pass over `.claude/rules/` (driven by the user catching
+inconsistencies) plus an extensibility fix to environment selection. Ended by
+discovering the REST Countries v5 account is frozen (quota exhausted).
+
+**Rule/doc reconciliations (each a user-caught inconsistency):**
+- **Allure grouping rule vs code.** A newly added "Allure environment sections"
+  rule mandated `pytest_runtest_makereport` + `allure.dynamic.feature()/epic()`
+  and "no manual grouping decorators" — but the code groups via the `env`
+  *fixture* using `parent_suite` + an `environment` label, and tests legitimately
+  use `@allure.feature`/`@allure.title` for readability. Reworded the rule to the
+  actual (working) design rather than changing code.
+- **`--env` not tied to `pytest_addoption`.** The rules never stated the
+  rubric-required mechanism. Added an explicit rule (then generalized it, below).
+
+**Extensibility fix (config-driven environment selection):**
+- The user pointed out the `--env` rule (and code) was hardcoded to
+  `countries|weather|both`, so it "won't apply to future APIs". Confirmed the
+  code coupling: `ENV_MARKERS` was a hardcoded tuple and the run-all value was
+  the literal `both` — contradicting the framework's "adding an API leaves the
+  core untouched" claim.
+- Fixed: `conftest.py` now derives `ENV_NAMES` and the `--env` choices/markers
+  from `config/environments.yaml` keys, and uses an `all` sentinel (default)
+  instead of `both`. Adding an API now needs only YAML + marker + suite.
+- Reworded the framework rule to require `pytest_addoption` with
+  **config-derived** choices + `all` (no hardcoded names). Updated README/CLAUDE.
+- Verified: `--env={countries,weather,all}`; `--env weather` → 10 passed,
+  4 deselected; old `--env both` now rejected by the choices.
+
+**Finding — REST Countries v5 account frozen:** repeated full-suite runs plus the
+day's calibration probing exhausted the free tier (500 req/mo). The API now
+returns `403 "Account has been frozen"` for every countries request. The `/all`
+test is the main quota consumer (~11 paginated calls/run; ~20 countries calls per
+full run total). **Decision (user): leave as-is** — countries hard-fail on 403
+until the account is unfrozen / quota resets, rather than adding skip-on-auth /
+reducing pagination. Note: pushing with the repo secret set will make CI red
+until the account recovers.
+
+**Files changed:** `conftest.py`, `.claude/rules/framework-rules.md`,
+`.claude/rules/code-style.md`, `.claude/rules/testing-standards.md`, `README.md`,
+`CLAUDE.md`.
+
+**Follow-ups:**
+- Unfreeze / rotate the REST Countries v5 key (or wait for monthly reset) before
+  relying on countries in CI; consider removing the repo secret meanwhile so CI
+  skips countries and stays green.
+- Several local commits are unpushed (`eabc319`, `9573e31`, `895c54b`, `f138c38`,
+  + this log entry).
