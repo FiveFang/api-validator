@@ -138,6 +138,41 @@ the others, `--env posts` runs just it, the response-time gate and Allure
 per-environment section apply automatically, and CI picks it up with no workflow
 change. See `.claude/rules/framework-rules.md` for the binding constraints.
 
+> **Step 1 wires the plumbing only.** Adding the YAML entry makes `--env <name>`
+> valid and registers the marker, but until a marked test suite exists,
+> `pytest --env <name>` collects **zero tests**. Steps 2–3 (validator + tests)
+> encode your specific API and are still required — the framework can't synthesize
+> them at runtime.
+
+### Generating the validator + tests with Claude
+Steps 2–3 are exactly what the `.claude/skills/` automate. Add the config entry
+(step 1), then ask Claude in plain language — it invokes `validator-generator`
+and `test-generator`, follows `.claude/rules/`, runs the suite, and iterates
+until green. You can also invoke the skills directly: `/validator-generator`,
+`/test-generator`.
+
+A one-shot prompt looks like:
+
+> "I added a `posts` env (`https://api.example.com/v1`) to `config/environments.yaml`.
+> Generate a validator + pytest suite and run it:
+> - `GET /posts` → assert more than 0 results
+> - `GET /posts/1` → validate fields `id, title, body, userId` present and typed
+> - sample response: `{ "id": 1, "title": "...", "body": "...", "userId": 1 }`
+> Then run `pytest --env posts` and show the results."
+
+What makes it one-shot (include as much as you can):
+- the **env name** (must match the YAML key);
+- **endpoints + methods** to test;
+- **fields / schema** to validate — or just paste a **sample JSON response**
+  (best; types are inferred from it);
+- any **specific rules** (min counts, value ranges, cross-references);
+- if the API needs **auth**, just say so — Claude reads the token from
+  `.env`/config (don't paste the key).
+
+Shortcut for a public API: say *"the API is public, probe it yourself to learn
+the shape"* and Claude will hit a few endpoints to discover the response
+structure before generating (as was done for REST Countries v5 and Open-Meteo).
+
 ## CI
 `.github/workflows/ci.yml` triggers on push to any branch (and PRs): sets up
 Python, installs dependencies, runs the full suite, **fails on any test failure
