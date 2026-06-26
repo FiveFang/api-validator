@@ -173,15 +173,15 @@ and `test-generator`, follows `.claude/rules/`, runs the suite, and iterates
 until green. You can also invoke the skills directly: `/validator-generator`,
 `/test-generator`.
 
-> **Note (spec-driven layout):** the `test-generator` skill currently emits a
-> pytest module, not a `test_specs/*.yaml` spec — it predates this layer and
-> would need updating to generate specs. For now, write the spec by hand
-> (see [`docs/dsl-spec.md`](docs/dsl-spec.md)); the validator skill is unaffected.
+In this spec-driven layout, `test-generator` emits **declarative spec checks**
+appended to `test_specs/<env>.yaml` (not a pytest module); `validator-generator`
+emits a validator class as usual — validators stay API-specific. See
+[`docs/dsl-spec.md`](docs/dsl-spec.md) for the spec format.
 
 A one-shot prompt looks like:
 
 > "I added a `posts` env (`https://api.example.com/v1`) to `config/environments.yaml`.
-> Generate a validator + pytest suite and run it:
+> Generate a validator + spec (`test_specs/posts.yaml`) and run it:
 > - `GET /posts` → assert more than 0 results
 > - `GET /posts/1` → validate fields `id, title, body, userId` present and typed
 > - sample response: `{ "id": 1, "title": "...", "body": "...", "userId": 1 }`
