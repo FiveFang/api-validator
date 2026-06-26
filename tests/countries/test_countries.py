@@ -35,24 +35,6 @@ MIN_EUROPE_COUNTRIES = 40
 _PAGE_SIZE = 25
 
 
-def _objects(payload: Any) -> list[dict[str, Any]]:
-    """Unwrap a v5 response into its list of country objects.
-
-    v5 wraps results as ``{"data": {"objects": [...]}}``. Be strict: anything
-    else is a contract violation worth failing on.
-    """
-    assert isinstance(payload, dict), (
-        f"Expected a v5 envelope dict, got {type(payload).__name__}"
-    )
-    data = payload.get("data")
-    assert isinstance(data, dict), f"Missing 'data' object in response: {payload!r:.200}"
-    objects = data.get("objects")
-    assert isinstance(objects, list), (
-        f"Missing 'data.objects' list in response: {payload!r:.200}"
-    )
-    return objects
-
-
 def _paginate(
     api_client: Any,
     assert_within_threshold: Any,
@@ -78,7 +60,7 @@ def _paginate(
         )
         assert_within_threshold(response, what=f"GET {path or '<all>'} offset={offset}")
 
-        page = _objects(response.json())
+        page = CountryValidator.unwrap_objects(response.json())
         collected.extend(page)
         if len(page) < _PAGE_SIZE:
             break
@@ -103,15 +85,19 @@ def test_region_europe_has_enough_countries(api_client, assert_within_threshold)
 @allure.feature("Countries")
 @allure.title("Germany record matches the country schema contract")
 @pytest.mark.countries
-def test_germany_schema(api_client, assert_within_threshold) -> None:
+def test_germany_schema(env, api_client, assert_within_threshold) -> None:
     response = api_client.get("names.common/germany")
     assert response.status_code == 200, (
         f"Expected 200 from names.common/germany, got {response.status_code}"
     )
     assert_within_threshold(response, what="GET names.common/germany")
 
-    results = _objects(response.json())
-    assert results, "names.common/germany returned no results"
+    results = CountryValidator.unwrap_objects(response.json())
+    # YAML-driven floor: a name lookup must return at least min_results_count.
+    assert len(results) >= env.min_results_count, (
+        f"names.common/germany returned {len(results)} results, "
+        f"below min_results_count={env.min_results_count}"
+    )
 
     germany = results[0]
     # Delegate presence + type checking to the validator (no inline schema
@@ -122,13 +108,17 @@ def test_germany_schema(api_client, assert_within_threshold) -> None:
 @allure.feature("Countries")
 @allure.title("Every inhabited country has a positive population")
 @pytest.mark.countries
-def test_all_countries_have_population(api_client, assert_within_threshold) -> None:
+def test_all_countries_have_population(env, api_client, assert_within_threshold) -> None:
     # The base path is the "all" collection. Limit fields to keep payloads small.
     countries = _paginate(
         api_client, assert_within_threshold, "",
         response_fields="names.common,population,capitals",
     )
-    assert countries, "/all returned no countries"
+    # YAML-driven floor for this list endpoint (sourced from config, not hardcoded).
+    assert len(countries) >= env.min_results_count, (
+        f"/all returned {len(countries)} countries, "
+        f"below min_results_count={env.min_results_count}"
+    )
 
     for country in countries:
         label = country.get("names", {}).get("common", repr(country)[:80])
@@ -158,7 +148,7 @@ def test_name_search_country_appears_in_region(api_client, assert_within_thresho
     )
     assert_within_threshold(name_response, what="GET names.common/germany")
 
-    matches = _objects(name_response.json())
+    matches = CountryValidator.unwrap_objects(name_response.json())
     assert matches, "names.common/germany returned no results"
     country = matches[0]
 
