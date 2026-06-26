@@ -5,6 +5,9 @@
 📊 **Live Allure report:** https://fivefang.github.io/api-validator/
 (published to GitHub Pages on every push to `main`, with accumulating trend history)
 
+To view Allure report for any other branch use the branch name like <<https://fivefang.github.io/api-validator/preview/feature-branch-name/>>
+https://fivefang.github.io/api-validator/preview/add-new-api/
+
 A multi-environment, **YAML-driven** API consistency test framework. The same
 API-agnostic infrastructure (HTTP client, validators, response-time gate,
 reporting) runs against two independent "environments":
