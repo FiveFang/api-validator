@@ -14,3 +14,7 @@ reports/
 
 # Env / secrets
 .env
+
+# IDE
+.idea/
+.vscode/
