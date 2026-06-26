@@ -16,8 +16,13 @@ See `README.md` for full setup and usage.
   - `src/client.py` — `APIClient` (pooled, timed, optional Bearer auth).
   - `src/validators/` — `BaseValidator` + per-API validators.
   - `src/reporters/base.py` — `BaseReporter` contract (Allure is primary).
+  - `src/spec/` — the declarative-spec engine (resolver, asserts, registry,
+    loader, runner, custom_checks).
   - `conftest.py` — `--env` flag, `env` fixture, `assert_within_threshold` gate.
-- **Environment suites** — `tests/<env>/`, each test marked `@pytest.mark.<env>`.
+- **API-agnostic tests** — there are no per-API test modules. Each environment's
+  tests are declarative YAML specs in `test_specs/<env>.yaml`, executed by the
+  single generic runner `tests/test_spec_runner.py`, which applies the
+  `@pytest.mark.<env>` marker per case. See `docs/dsl-spec.md`.
 - **Config** — `config/environments.yaml` is the only source of base URLs and
   thresholds. `test_data/` holds parametrization data.
 

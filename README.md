@@ -24,17 +24,24 @@ never hardcodes URLs or thresholds.
 ## Layout
 ```
 config/environments.yaml     # base URLs + thresholds (single source of truth)
-test_data/cities.json        # parametrization data for the weather suite
+test_data/cities.json        # parametrization data for the weather specs
+test_specs/                  # declarative YAML test specs (one per environment)
 src/
   config_loader.py           # YAML -> immutable Environment objects
   client.py                  # APIClient (pooled, timed, optional Bearer auth)
   validators/                # BaseValidator + Country/Forecast validators
   reporters/base.py          # BaseReporter contract
+  spec/                      # the spec engine (resolver, asserts, registry, runner)
 conftest.py                  # --env flag, env fixture, response-time gate
-tests/countries/, tests/weather/
+tests/test_spec_runner.py    # the single generic, API-agnostic test driver
 .claude/rules/, .claude/skills/   # Claude Code project rules & skills
 .github/workflows/ci.yml     # CI: run suite, enforce gate, upload Allure report
 ```
+
+> **Tests are API-agnostic.** There are no per-API test modules: every
+> environment's tests are YAML *specs* in `test_specs/`, executed by the single
+> generic runner `tests/test_spec_runner.py`. Adding/changing coverage is a spec
+> edit, not Python. See [`docs/dsl-spec.md`](docs/dsl-spec.md).
 
 ## Setup
 ```bash
@@ -105,9 +112,10 @@ overwrites its own subtree. Only the `main` report accumulates trend history.
   test's environment from its `@pytest.mark.<env>` marker and injects base URL +
   thresholds + auth. The `--env` flag selects suites by deselecting non-matching
   markers in `pytest_collection_modifyitems`.
-- **Reuse across APIs.** Both suites share one `APIClient`, one `BaseValidator`
-  hierarchy, and one `assert_within_threshold` gate. Adding an API = config entry
-  + a validator + a test suite; the core is untouched.
+- **Reuse across APIs.** Both environments share one `APIClient`, one
+  `BaseValidator` hierarchy, one `assert_within_threshold` gate, **and the same
+  generic spec runner** — the test logic itself is reused, not duplicated.
+  Adding an API = config entry + a validator + a YAML spec; the core is untouched.
 - **Quality gate.** `assert_within_threshold` reads `max_response_time` from the
   environment, so the gate is YAML-driven, never hardcoded. The client pools and
   warms connections per environment so the gate measures steady-state API
@@ -136,26 +144,25 @@ to add a `posts` environment for `https://api.example.com/v1`:
    business rules). The `.claude/skills/validator-generator` skill can scaffold
    this from a sample JSON response.
 
-3. **Add a test suite** under `tests/posts/test_posts.py`. Every test must:
-   - carry `@pytest.mark.posts`,
-   - use the shared `api_client`, `env`, and `assert_within_threshold` fixtures
-     (never hardcode URLs/thresholds or call `requests` directly),
-   - delegate schema checks to your validator, and
-   - parametrize any data-driven cases from `test_data/*.json`.
-   The `.claude/skills/test-generator` skill scaffolds a compliant file.
+3. **Add a spec** `test_specs/posts.yaml` (`environment: posts`) — a list of
+   declarative checks (endpoint, params, expected status, validator, asserts).
+   No Python: the generic runner executes it, applying the `posts` marker per
+   case so the shared fixtures, `--env` selection, gate, and Allure grouping all
+   apply. Parametrize data-driven cases from `test_data/*.json` via `cases:`.
+   See [`docs/dsl-spec.md`](docs/dsl-spec.md) for the format.
 
 4. **(If authenticated) provide the token** — set the env var named by
    `auth_token_env` locally (e.g. in `.env`) and add a matching repository
    secret for CI. Without it, that environment's tests skip (CI stays green).
 
-That's everything. `pytest` (or `--env all`) now runs the new suite alongside
+That's everything. `pytest` (or `--env all`) now runs the new spec alongside
 the others, `--env posts` runs just it, the response-time gate and Allure
 per-environment section apply automatically, and CI picks it up with no workflow
 change. See `.claude/rules/framework-rules.md` for the binding constraints.
 
 > **Step 1 wires the plumbing only.** Adding the YAML entry makes `--env <name>`
-> valid and registers the marker, but until a marked test suite exists,
-> `pytest --env <name>` collects **zero tests**. Steps 2–3 (validator + tests)
+> valid and registers the marker, but until a spec (and its validator) exists,
+> `pytest --env <name>` collects **zero tests**. Steps 2–3 (validator + spec)
 > encode your specific API and are still required — the framework can't synthesize
 > them at runtime.
 
@@ -165,6 +172,11 @@ Steps 2–3 are exactly what the `.claude/skills/` automate. Add the config entr
 and `test-generator`, follows `.claude/rules/`, runs the suite, and iterates
 until green. You can also invoke the skills directly: `/validator-generator`,
 `/test-generator`.
+
+> **Note (spec-driven layout):** the `test-generator` skill currently emits a
+> pytest module, not a `test_specs/*.yaml` spec — it predates this layer and
+> would need updating to generate specs. For now, write the spec by hand
+> (see [`docs/dsl-spec.md`](docs/dsl-spec.md)); the validator skill is unaffected.
 
 A one-shot prompt looks like:
 
