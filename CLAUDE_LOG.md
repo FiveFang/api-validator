@@ -477,3 +477,42 @@ published and now coexist on `gh-pages`:
 **Follow-up:** user may re-enable the "branch-protection" ruleset later (pushes
 to `main` would then require PRs); `ci-trigger-test` and the `add-new-api` demo
 branch are intentionally kept.
+
+---
+
+## 2026-06-26 — Session 14: Plan for prompt-driven OpenAPI onboarding of intranet APIs
+
+**Summary:** On the `check-extensibility` branch, designed (planning only, no
+code/skills/config changed) a flow for onboarding **private/intranet** APIs that
+Claude can't reach and can't run a live suite against. Wrote it up as a plan doc.
+
+**Work done:**
+- Reframed the existing generation flow: `validator-generator` already takes a
+  *shape*, not a live API — probing is just one shape source. So for unreachable
+  APIs the generation half already works; the real gap is *verification*.
+- Locked decisions through discussion: **OpenAPI/Swagger** as primary shape
+  source (richer than probing — types/required/enums/ranges are declared);
+  **hand-off** verification (Claude verifies offline, user runs `pytest --env`
+  live); **single-prompt input** (just the Swagger URL + optional op selection),
+  Claude derives the env entry from `servers`/`securitySchemes`; the **coverage
+  manifest is an _output_** (per-spec record + dedup index for incremental
+  re-runs, keyed by `operationId`, with `status: automated|already-covered|
+  skipped|blocked` and `spec_version` drift detection).
+- Added two safety mechanisms from user feedback: a **propose checkpoint** before
+  generating (bulk/shared-config-mutating runs), and a **staged-merge** for
+  `config/environments.yaml` — stage entries to a temp file, merge once atomically
+  at the end so the live config never sits half-written and a multi-spec session
+  lands as one clean diff.
+- Documented the OpenAPI→framework mapping table and the **core-change fences**
+  (non-GET methods, non-Bearer auth, multi-file config layout) that must surface
+  as `blocked` rather than be silently worked around.
+
+**Files changed:**
+- `docs/openapi-onboarding-plan.md` (new) — the plan.
+- `CLAUDE_LOG.md` (this entry).
+
+**Follow-ups:**
+- Implementation (separate PR): extend `validator-generator`/`test-generator`
+  for spec input, add an `openapi-importer` skill, add a README section.
+- `AGENTS.md` is present untracked in the working tree but is unrelated to this
+  work — intentionally not committed here.
