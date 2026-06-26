@@ -5,10 +5,11 @@ single generic runner — so the *tests themselves* are API-agnostic, not just t
 core. Adding coverage for an API becomes "a spec + a validator", with no per-API
 Python test code.
 
-> Status: **first cut.** The `weather` environment is fully spec-driven
-> (`test_specs/weather.yaml`); `countries` still uses hand-written Python tests
-> (`tests/countries/`) pending engine features it needs — pagination, response
-> chaining, and a custom-rule escape hatch (see *Not yet supported*).
+> Status: **both environments fully spec-driven.** `weather`
+> (`test_specs/weather.yaml`) and `countries` (`test_specs/countries.yaml`) run
+> through the single generic runner — `tests/` now contains only
+> `test_spec_runner.py`, no per-API test modules. The engine supports offset
+> pagination, multi-step response chaining, and a custom-rule escape hatch.
 
 ## How it fits the existing core
 
@@ -61,12 +62,47 @@ Dotted, with a leading `$.`/`$` for the root: `"$.hourly.time"`,
 `Environment` (e.g. `${env.min_results_count}`). A string that is *exactly* one
 token preserves type (a float stays a float).
 
+Filters: `${vars.region|lower}` (also `|upper`, `|strip`).
+
 ### Assertion vocabulary (`src/spec/asserts.py`)
 `equals`, `not_equals`, `gt`/`gte`/`lt`/`lte`, `length_gte`/`length_gt`,
 `approx` (+ `tol`), `type` (`str`/`int`/`float`/`number`/`list`/`dict`/`bool`),
 `non_empty`, `contains`. Each assertion is `{ path, <op>: <value> }`; the value
 is interpolated, so `length_gte: "${env.min_results_count}"` keeps the gate
 YAML-driven.
+
+### Pagination
+Add a `paginate` block to a request to walk an offset-paged collection; the
+result the check operates on becomes the concatenated list of all pages:
+
+```yaml
+request:
+  path: region/europe
+  params: { response_fields: names.common }
+  paginate: { style: offset, param: offset, page_size: 25, unwrap: "$.data.objects" }
+asserts:
+  - { path: "$", length_gt: 40 }     # "$" is the collected list
+```
+
+### Multi-step flows + chaining
+A check with `steps` runs each step in order, threading captured values. `save`
+extracts from a step's result into `vars`, which later steps interpolate:
+
+```yaml
+steps:
+  - request: { path: names.common/germany }
+    save: { common: "$.data.objects.0.names.common", region: "$.data.objects.0.region" }
+  - request:
+      path: "region/${vars.region|lower}"
+      paginate: { style: offset, param: offset, page_size: 25, unwrap: "$.data.objects" }
+    custom: [country_appears_in_region]
+```
+
+### Custom-rule escape hatch (`src/spec/custom_checks.py`)
+For rules too procedural to express as data (conditional per-item invariants,
+cross-endpoint membership), a step lists `custom: [name]`; each named function
+receives the step result + context and raises `AssertionError` on failure. This
+keeps specs declarative while still allowing the occasional complex rule.
 
 ## Running
 
@@ -75,14 +111,8 @@ pytest --env weather         # runs the spec-driven weather suite
 pytest                       # weather (specs) + countries (Python) together
 ```
 
-## Not yet supported (next steps to convert `countries`)
-- **Pagination** — a `paginate: { style: offset, page_size: 25, param: offset }`
-  descriptor so the runner walks all pages (countries' `/all`, `region/*`).
-- **Response chaining** — capture a value from one response and feed it into the
-  next request (`save:` + `${vars.*}`) for cross-reference checks.
-- **Custom-rule escape hatch** — a named Python predicate for rules too complex
-  to express as data (e.g. "a country *with a capital* must have population > 0").
-- **Non-GET methods** — the core `APIClient` is GET-only.
-
-These are deliberately staged; the engine is structured so each is an additive
-feature, not a rewrite.
+## Not yet supported
+- **Non-GET methods** — the core `APIClient` is GET-only (a known core
+  extension point, flagged rather than worked around).
+- **Cursor/page-number pagination** — only `style: offset` is implemented;
+  other styles are additive.

@@ -65,14 +65,25 @@ def get_path(obj: Any, path: str) -> Any:
     return cur
 
 
+# String filters usable as ``${expr|filter}`` (e.g. ``${vars.region|lower}``).
+_FILTERS = {
+    "lower": lambda v: str(v).lower(),
+    "upper": lambda v: str(v).upper(),
+    "strip": lambda v: str(v).strip(),
+}
+
+
 def _lookup(context: dict, expr: str) -> Any:
-    """Walk ``context`` by a dotted ``expr``; supports dict keys and attributes.
+    """Resolve a dotted ``expr`` (with optional ``|filter`` suffixes) from context.
 
     Attribute access lets ``${env.min_results_count}`` read off the frozen
     :class:`Environment` dataclass while ``${case.latitude}`` reads a dict.
+    Trailing ``|lower``/``|upper``/``|strip`` filters transform the result (used
+    e.g. to lowercase a captured region before the chained request).
     """
+    base, *filters = expr.strip().split("|")
     cur: Any = context
-    for seg in expr.strip().split("."):
+    for seg in base.strip().split("."):
         if isinstance(cur, dict):
             if seg not in cur:
                 raise SpecError(f"interpolation '${{{expr}}}': '{seg}' not found")
@@ -81,6 +92,11 @@ def _lookup(context: dict, expr: str) -> Any:
             cur = getattr(cur, seg)
         else:
             raise SpecError(f"interpolation '${{{expr}}}': cannot resolve '{seg}'")
+    for name in filters:
+        fn = _FILTERS.get(name.strip())
+        if fn is None:
+            raise SpecError(f"interpolation '${{{expr}}}': unknown filter '{name}'")
+        cur = fn(cur)
     return cur
 
 
