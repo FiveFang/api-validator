@@ -209,3 +209,58 @@ rule), `.github/workflows/ci.yml`, `conftest.py` comment, `scripts/ci_summary.py
 **Verification:** `pytest` (with key) → **14 passed**; `pytest --env countries`
 → 4 passed; without the key → 4 skipped (CI-safe). Allure groups results under
 `countries` and `weather`.
+
+---
+
+## 2026-06-25 — Session 6: Publish to GitHub + green CI
+
+**Summary:** Created the GitHub repo, pushed `main`, and got CI passing on the
+runner.
+
+**Work done:**
+- Created `FiveFang/api-validator` (initially private) via `gh repo create` and
+  pushed `main`. Confirmed the gitignored `.env` (the v5 key) was never tracked.
+- Added `.idea/` / `.vscode/` to `.gitignore`.
+
+**A real "Claude was wrong" / CI debugging item:**
+The first CI run **failed before any test ran**. Root cause: the
+`simple-elf/allure-report-action` is a **Docker container action**, so GitHub
+builds its image during job setup — and its base image `openjdk:8-jre-alpine`
+was removed from Docker Hub. The failed pre-job image build aborted the whole
+job (checkout/tests all "skipped"); `continue-on-error` can't rescue a job-setup
+image build. **Fix:** dropped the Docker action and generate the report with the
+Allure CLI directly (`actions/setup-java` + download `allure-*.tgz` +
+`allure generate`), and made the report/summary steps non-fatal so only test
+failures gate the build. Re-run: green (`10 passed, 4 skipped` — countries skip
+in CI until the secret is set).
+
+**Files changed:** `.gitignore`, `.github/workflows/ci.yml`.
+
+---
+
+## 2026-06-25 — Session 7: Publish Allure report to GitHub Pages
+
+**Summary:** The CI now publishes the Allure HTML report to a `gh-pages` branch;
+the report is live on GitHub Pages.
+
+**Work done:**
+- Added `permissions: contents: write` and a `peaceiris/actions-gh-pages@v4`
+  step that publishes `allure-report/` to the `gh-pages` branch on pushes to
+  `main` (PRs/other branches still upload artifacts but don't publish).
+- Added history-restore steps (checkout `gh-pages` → seed `allure-results/
+  history`) so Allure **trend graphs accumulate** across runs. First run has no
+  `gh-pages` yet — the checkout is `continue-on-error` and the run stayed green.
+- Chose `peaceiris` (a Node action) deliberately over another container action,
+  given the Session 6 Docker failure.
+- User made the repo **public** and set Pages source to `gh-pages /(root)`.
+
+**Verification:** CI green; `gh-pages` branch created with the report at root
+(`index.html`, `history/`, `widgets/`, `.nojekyll`); Pages status `built`;
+**https://fivefang.github.io/api-validator/** returns HTTP 200. Per-environment
+Allure sections (`countries`/`weather`) preserved — driven by the `env`
+fixture's `parent_suite` label, left untouched.
+
+**Follow-ups:**
+- Set the `RESTCOUNTRIES_API_KEY` repo secret so the countries suite runs (not
+  skips) in CI and appears in the published report.
+- Optionally add a live-report link to the README.
