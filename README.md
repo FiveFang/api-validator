@@ -36,18 +36,26 @@ pip install -r requirements.txt
 
 ### REST Countries v5 token (for the `countries` suite)
 REST Countries retired its free, no-auth v3.1 API; v5 requires a Bearer token
-(free tier: 500 requests/month, no card). Create a key, then:
+(free tier: 500 requests/month, no card) on the `api.restcountries.com` host.
+Create a key, then either export it or drop it in a gitignored `.env`:
 ```bash
-export RESTCOUNTRIES_TOKEN="your_v5_key"
+export RESTCOUNTRIES_API_KEY="your_v5_key"
+# or:  echo 'RESTCOUNTRIES_API_KEY=your_v5_key' > .env  && set -a; . ./.env; set +a
 ```
 If the token is **not** set, the countries suite is **skipped** (not failed), so
 the pipeline stays green. The weather suite needs no auth.
+
+v5 differs from v3.1: responses are wrapped in `{"data": {"objects": [...]}}`,
+collections paginate via an `offset` query param (25/page), and endpoints are
+`names.common/{name}`, `region/{region}`, and the base path for "all". Fields
+were renamed (`name`→`names`, `capital`→`capitals`, and `currencies`/`languages`
+are now lists) — the validator and tests are calibrated to this shape.
 
 ## Running tests
 ```bash
 pytest                  # both environments (default)
 pytest --env weather    # weather only
-pytest --env countries  # countries only (requires RESTCOUNTRIES_TOKEN)
+pytest --env countries  # countries only (requires RESTCOUNTRIES_API_KEY)
 ```
 
 ### Allure report (per-environment sections)
@@ -66,7 +74,7 @@ Allure *parent suite* label, so the report has a clear section per environment.
   response-time breach of the YAML threshold (the quality gate). Any failure
   fails the CI pipeline.
 - **Skipped** — the environment requires a token that isn't configured (e.g.
-  `RESTCOUNTRIES_TOKEN`).
+  `RESTCOUNTRIES_API_KEY`).
 
 ## How it works
 - **Environment abstraction.** `config_loader.py` parses YAML into frozen
@@ -86,7 +94,7 @@ Allure *parent suite* label, so the report has a clear section per environment.
 `.github/workflows/ci.yml` triggers on push to any branch (and PRs): sets up
 Python, installs dependencies, runs the full suite, **fails on any test failure
 or quality-gate breach**, prints a test summary to the job output, and uploads
-the Allure report (and JUnit XML) as artifacts. Set a `RESTCOUNTRIES_TOKEN`
+the Allure report (and JUnit XML) as artifacts. Set a `RESTCOUNTRIES_API_KEY`
 repository secret to enable the countries suite in CI.
 
 ## Design decisions & assumptions
@@ -97,9 +105,12 @@ repository secret to enable the countries suite in CI.
   named, commented constants in the test/validator — they are properties of the
   data under test, not deployment config.
 - **REST Countries v5 + token.** The assignment named v3.1 as "free, no auth",
-  but that API is now deprecated and returns a stub. v5 (token-gated) is used
-  instead; the framework is token-driven and skips gracefully without a key.
-  v5 changed some field names from v3.1, so `CountryValidator`'s contract may
-  need a one-line calibration against a live v5 response once a key is supplied.
+  but that API is now deprecated and returns a stub. v5 (token-gated, on
+  `api.restcountries.com`) is used instead; the framework is token-driven and
+  skips gracefully without a key. The validator and tests are calibrated to the
+  v5 response shape (wrapped `data.objects`, `offset` pagination, renamed
+  fields). Note v5 includes uninhabited territories (e.g. Bouvet Island) with
+  population 0, so the "/all" test asserts a positive population only for
+  countries that have a capital.
 - **Open-Meteo** returns grid-snapped coordinates and resolves `timezone=auto`
   to a real IANA name; tests allow a 1° coordinate tolerance accordingly.

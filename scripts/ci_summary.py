@@ -52,7 +52,7 @@ def summarize(junit_path: str) -> str:
     if skipped:
         lines.append(
             "> Skipped tests usually mean an environment's API token is not "
-            "configured (e.g. `RESTCOUNTRIES_TOKEN`)."
+            "configured (e.g. `RESTCOUNTRIES_API_KEY`)."
         )
     return "\n".join(lines)
 

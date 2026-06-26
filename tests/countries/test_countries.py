@@ -1,19 +1,16 @@
 """COUNTRIES workstream: tests against the REST Countries v5 API.
 
-Requires a Bearer token via the RESTCOUNTRIES_TOKEN env var (free tier:
+Requires a Bearer token via the RESTCOUNTRIES_API_KEY env var (free tier:
 500 req/mo). Without it, these tests are skipped by the ``env`` fixture so CI
-stays green. The endpoint paths (``region/{x}``, ``name/{x}``, ``all``) carry
-over from v3.1 per the official migration guide ("replace the version in the
-URL with /v5").
+stays green.
 
-
-Every test:
-  * carries the ``@pytest.mark.countries`` marker (drives ``--env`` selection
-    and resolves the countries Environment via the ``env`` fixture),
-  * uses the shared ``api_client`` fixture (base_url is injected — never
-    hardcoded here), and
-  * calls ``assert_within_threshold`` after each request so the YAML-driven
-    response-time gate is enforced.
+v5 specifics handled here:
+  * Responses are wrapped: ``{"data": {"objects": [ ... ]}}`` — unwrapped by
+    ``_objects`` below.
+  * Collections are paginated by an ``offset`` query param, 25 items/page —
+    walked by ``_paginate`` (which enforces the response-time gate per page).
+  * Endpoints: ``names.common/{name}``, ``region/{region}``, and the base path
+    (``""``) for "all".
 
 Schema/type assertions are delegated to :class:`CountryValidator`; tests never
 inline ``assert "field" in payload`` checks.
@@ -29,41 +26,77 @@ import pytest
 from src.validators.country import CountryValidator
 
 # Test-intrinsic constant: Europe is documented to contain well over 40
-# countries, so a healthy ``region/europe`` response must exceed this floor.
-# (This is a property of the data under test, not an environment threshold,
-# so it lives here rather than in config.)
+# countries (v5 returns 54), so a healthy paginated ``region/europe`` walk must
+# exceed this floor. This is a property of the data under test, not an
+# environment threshold, so it lives here rather than in config.
 MIN_EUROPE_COUNTRIES = 40
 
+# v5 fixes the page size at 25 and pages via an ``offset`` query parameter.
+_PAGE_SIZE = 25
 
-def _as_list(payload: Any) -> list[dict[str, Any]]:
-    """Normalise a REST Countries response into a list of country dicts.
 
-    REST Countries usually returns a JSON array, but be resilient: if a single
-    object comes back, wrap it so callers can index/iterate uniformly.
+def _objects(payload: Any) -> list[dict[str, Any]]:
+    """Unwrap a v5 response into its list of country objects.
+
+    v5 wraps results as ``{"data": {"objects": [...]}}``. Be strict: anything
+    else is a contract violation worth failing on.
     """
-    if isinstance(payload, list):
-        return payload
-    if isinstance(payload, dict):
-        return [payload]
-    raise AssertionError(
-        f"Expected a list or object from the API, got {type(payload).__name__}"
+    assert isinstance(payload, dict), (
+        f"Expected a v5 envelope dict, got {type(payload).__name__}"
     )
+    data = payload.get("data")
+    assert isinstance(data, dict), f"Missing 'data' object in response: {payload!r:.200}"
+    objects = data.get("objects")
+    assert isinstance(objects, list), (
+        f"Missing 'data.objects' list in response: {payload!r:.200}"
+    )
+    return objects
+
+
+def _paginate(
+    api_client: Any,
+    assert_within_threshold: Any,
+    path: str,
+    *,
+    response_fields: str | None = None,
+) -> list[dict[str, Any]]:
+    """Walk every page of a v5 collection via ``offset``, returning all objects.
+
+    Enforces the response-time gate on each page request so the YAML threshold
+    is checked for the whole walk, not just the first call.
+    """
+    collected: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        params: dict[str, Any] = {"offset": offset}
+        if response_fields:
+            params["response_fields"] = response_fields
+        response = api_client.get(path, params=params)
+        assert response.status_code == 200, (
+            f"Expected 200 from '{path or '<base>'}' at offset {offset}, "
+            f"got {response.status_code}"
+        )
+        assert_within_threshold(response, what=f"GET {path or '<all>'} offset={offset}")
+
+        page = _objects(response.json())
+        collected.extend(page)
+        if len(page) < _PAGE_SIZE:
+            break
+        offset += _PAGE_SIZE
+    return collected
 
 
 @allure.feature("Countries")
 @allure.title("Europe region returns more than the minimum number of countries")
 @pytest.mark.countries
 def test_region_europe_has_enough_countries(api_client, assert_within_threshold) -> None:
-    response = api_client.get("region/europe")
-    assert response.status_code == 200, (
-        f"Expected 200 from region/europe, got {response.status_code}"
+    countries = _paginate(
+        api_client, assert_within_threshold, "region/europe",
+        response_fields="names.common",
     )
-    assert_within_threshold(response, what="GET region/europe")
-
-    results = _as_list(response.json())
-    assert len(results) > MIN_EUROPE_COUNTRIES, (
+    assert len(countries) > MIN_EUROPE_COUNTRIES, (
         f"Expected more than {MIN_EUROPE_COUNTRIES} European countries, "
-        f"got {len(results)}"
+        f"got {len(countries)}"
     )
 
 
@@ -71,44 +104,47 @@ def test_region_europe_has_enough_countries(api_client, assert_within_threshold)
 @allure.title("Germany record matches the country schema contract")
 @pytest.mark.countries
 def test_germany_schema(api_client, assert_within_threshold) -> None:
-    response = api_client.get("name/germany")
+    response = api_client.get("names.common/germany")
     assert response.status_code == 200, (
-        f"Expected 200 from name/germany, got {response.status_code}"
+        f"Expected 200 from names.common/germany, got {response.status_code}"
     )
-    assert_within_threshold(response, what="GET name/germany")
+    assert_within_threshold(response, what="GET names.common/germany")
 
-    results = _as_list(response.json())
-    assert results, "name/germany returned no results"
+    results = _objects(response.json())
+    assert results, "names.common/germany returned no results"
 
     germany = results[0]
     # Delegate presence + type checking to the validator (no inline schema
-    # asserts): confirms name, capital, population, currencies, languages.
+    # asserts): confirms names, capitals, population, currencies, languages, region.
     CountryValidator().validate(germany)
 
 
 @allure.feature("Countries")
-@allure.title("Every country in /all has a positive population")
+@allure.title("Every inhabited country has a positive population")
 @pytest.mark.countries
 def test_all_countries_have_population(api_client, assert_within_threshold) -> None:
-    response = api_client.get("all", params={"fields": "name,population"})
-    assert response.status_code == 200, (
-        f"Expected 200 from /all, got {response.status_code}"
+    # The base path is the "all" collection. Limit fields to keep payloads small.
+    countries = _paginate(
+        api_client, assert_within_threshold, "",
+        response_fields="names.common,population,capitals",
     )
-    assert_within_threshold(response, what="GET all?fields=name,population")
-
-    countries = _as_list(response.json())
     assert countries, "/all returned no countries"
 
     for country in countries:
-        # Identify the offending country by its common name for a clear message.
-        try:
-            label = CountryValidator.common_name(country)
-        except AssertionError:
-            label = repr(country)[:120]
-        assert CountryValidator.is_positive_population(country), (
-            f"Country {label!r} has non-positive or missing population: "
+        label = country.get("names", {}).get("common", repr(country)[:80])
+        # Universal data-quality rule: population is a non-negative integer.
+        assert CountryValidator.is_valid_population(country), (
+            f"Country {label!r} has an invalid population: "
             f"{country.get('population')!r}"
         )
+        # Consistency rule: any country with a capital is inhabited (>0).
+        # v5 includes uninhabited territories (e.g. Bouvet Island) that have an
+        # empty capital list and population 0 — those are legitimately excluded.
+        if CountryValidator.has_capital(country):
+            assert CountryValidator.is_positive_population(country), (
+                f"Country {label!r} has a capital but non-positive population: "
+                f"{country.get('population')!r}"
+            )
 
 
 @allure.feature("Countries")
@@ -116,14 +152,14 @@ def test_all_countries_have_population(api_client, assert_within_threshold) -> N
 @pytest.mark.countries
 def test_name_search_country_appears_in_region(api_client, assert_within_threshold) -> None:
     # 1) Find the country by name and read its region + common name.
-    name_response = api_client.get("name/germany")
+    name_response = api_client.get("names.common/germany")
     assert name_response.status_code == 200, (
-        f"Expected 200 from name/germany, got {name_response.status_code}"
+        f"Expected 200 from names.common/germany, got {name_response.status_code}"
     )
-    assert_within_threshold(name_response, what="GET name/germany")
+    assert_within_threshold(name_response, what="GET names.common/germany")
 
-    matches = _as_list(name_response.json())
-    assert matches, "name/germany returned no results"
+    matches = _objects(name_response.json())
+    assert matches, "names.common/germany returned no results"
     country = matches[0]
 
     common = CountryValidator.common_name(country)
@@ -132,18 +168,15 @@ def test_name_search_country_appears_in_region(api_client, assert_within_thresho
         f"Expected a region string for {common!r}, got {region!r}"
     )
 
-    # 2) The same country must appear among that region's countries.
-    region_response = api_client.get(f"region/{region.lower()}")
-    assert region_response.status_code == 200, (
-        f"Expected 200 from region/{region.lower()}, got {region_response.status_code}"
+    # 2) The same country must appear among that region's countries (paginated).
+    region_countries = _paginate(
+        api_client, assert_within_threshold, f"region/{region.lower()}",
+        response_fields="names.common",
     )
-    assert_within_threshold(region_response, what=f"GET region/{region.lower()}")
-
-    region_countries = _as_list(region_response.json())
     region_common_names = {
         CountryValidator.common_name(c)
         for c in region_countries
-        if isinstance(c.get("name"), dict) and isinstance(c["name"].get("common"), str)
+        if isinstance(c.get("names"), dict) and isinstance(c["names"].get("common"), str)
     }
     assert common in region_common_names, (
         f"{common!r} (region {region!r}) did not appear among the "

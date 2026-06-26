@@ -44,5 +44,5 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pytest                  # both environments
 pytest --env weather    # one environment
-export RESTCOUNTRIES_TOKEN=...   # enables the countries suite
+export RESTCOUNTRIES_API_KEY=...   # enables the countries suite (v5)
 ```

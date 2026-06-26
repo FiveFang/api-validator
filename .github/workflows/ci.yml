@@ -14,7 +14,7 @@ jobs:
     env:
       # Optional: a valid REST Countries v5 key enables the countries suite.
       # If unset, those tests skip (the pipeline still runs and reports).
-      RESTCOUNTRIES_TOKEN: ${{ secrets.RESTCOUNTRIES_TOKEN }}
+      RESTCOUNTRIES_API_KEY: ${{ secrets.RESTCOUNTRIES_API_KEY }}
 
     steps:
       - name: Checkout

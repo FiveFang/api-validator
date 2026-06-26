@@ -16,12 +16,14 @@
 
 environments:
   # REST Countries migrated from the free, no-auth v3.1 API to a key-gated v5
-  # API (free tier: 500 req/mo). v3.1 now returns a deprecation stub. Provide a
-  # v5 key via the RESTCOUNTRIES_TOKEN env var; without it the countries suite
-  # skips so CI stays green. See README "REST Countries v5" for setup.
+  # API (free tier: 500 req/mo) on the api.restcountries.com host. v3.1 now
+  # returns a deprecation stub. Provide a v5 key via the RESTCOUNTRIES_API_KEY
+  # env var; without it the countries suite skips so CI stays green. v5 paths:
+  # names.common/{name}, region/{region}, and the base for "all" (offset-paged,
+  # 25/page). See README "REST Countries v5" for setup.
   countries:
-    base_url: https://restcountries.com/countries/v5
-    auth_token_env: RESTCOUNTRIES_TOKEN
+    base_url: https://api.restcountries.com/countries/v5
+    auth_token_env: RESTCOUNTRIES_API_KEY
     max_response_time: 2.0
     min_results_count: 1
 

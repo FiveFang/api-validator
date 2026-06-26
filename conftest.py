@@ -104,7 +104,7 @@ def env(request: pytest.FixtureRequest, environments: dict[str, Environment]) ->
 
     # If this environment requires a Bearer token but none was supplied, skip
     # rather than fail — keeps CI green until a key is configured. Set the env
-    # var named by `auth_token_env` in config (e.g. RESTCOUNTRIES_TOKEN).
+    # var named by `auth_token_env` in config (e.g. RESTCOUNTRIES_API_KEY).
     if environment.requires_auth and not environment.auth_token:
         pytest.skip(
             f"[{environment.name}] requires an API token; set the configured "

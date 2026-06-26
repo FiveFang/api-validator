@@ -55,8 +55,13 @@ class APIClient:
         return self._env.base_url
 
     def get(self, path: str, *, params: dict[str, Any] | None = None) -> TimedResponse:
-        """GET ``base_url + path`` and return the response with its timing."""
-        url = f"{self._env.base_url}/{path.lstrip('/')}"
+        """GET ``base_url + path`` and return the response with its timing.
+
+        An empty/``"/"`` path targets the base URL itself (no trailing slash),
+        which some APIs (e.g. REST Countries v5's "all" collection) require.
+        """
+        clean = path.strip("/")
+        url = f"{self._env.base_url}/{clean}" if clean else self._env.base_url
         response = self._session.get(url, params=params, timeout=self._timeout)
         # requests measures elapsed for us; convert timedelta to seconds.
         return TimedResponse(response=response, elapsed_seconds=response.elapsed.total_seconds())

@@ -158,6 +158,54 @@ sections all verified locally.
 `pyproject.toml`, `requirements.txt`, `README.md`, `CLAUDE.md`.
 
 **Follow-ups:**
-- Add a real `RESTCOUNTRIES_TOKEN` and calibrate `CountryValidator` against a
+- Add a real REST Countries v5 key and calibrate `CountryValidator` against a
   live v5 response (v5 changed some field names from v3.1).
-- Set the `RESTCOUNTRIES_TOKEN` repo secret in GitHub for CI.
+- Set the REST Countries v5 repo secret in GitHub for CI.
+
+---
+
+## 2026-06-25 — Session 5: Calibrate the countries suite against live v5
+
+**Summary:** With a real REST Countries v5 key supplied, calibrated the
+`countries` validator and tests against the live v5 API. **All 14 tests now
+pass live** (4 countries + 10 weather) in ~9s.
+
+**Key discoveries (only possible against live data):**
+- **Wrong host.** The working v5 surface is `https://api.restcountries.com/...`
+  (the `api.` subdomain), not `https://restcountries.com/...`. The latter's
+  `/countries/v5` path returned `401 "Authorization key required"` for *every*
+  header/scheme — which looked like an auth bug but was actually the wrong host.
+  The official `/docs` (fetched) gave the correct base + endpoints.
+- **Renamed/retyped fields.** v5 wraps results in `{"data":{"objects":[...]}}`
+  and renamed fields: `name`→`names`, `capital`→`capitals`; `currencies` and
+  `languages` became **lists** (were dicts); `region` is a plain string.
+  Rewrote `CountryValidator` to this contract.
+- **Pagination param is `offset`, not `page`.** `page`/`page[size]`/`pageSize`
+  were all silently ignored (every "page" returned the same 25). `offset`
+  (step 25) actually shifts the window; pages are a fixed 25 items. Added a
+  `_paginate` helper that walks `offset` until a short page, enforcing the
+  response-time gate on every page.
+- **Uninhabited territories break "population > 0".** v5 includes Bouvet Island
+  and Heard & McDonald Islands with `population: 0` and empty `capitals`. So the
+  original "every country has population > 0" is false for v5. Resolved with a
+  consistency rule that matches intent: population is a non-negative int for all,
+  and strictly > 0 for every country that **has a capital** (i.e. is inhabited).
+
+**Config change:** the user's key is in `RESTCOUNTRIES_API_KEY` (in a gitignored
+`.env`), so renamed the configured `auth_token_env` from `RESTCOUNTRIES_TOKEN`
+→ `RESTCOUNTRIES_API_KEY` across config, CI secret, and docs.
+
+**Another "Claude was wrong" data point:** my first two probing rounds assumed
+`restcountries.com/countries/v5` + `page`-based pagination; both were wrong and
+only the live API + official docs corrected them. Reinforces the framework rule
+of calibrating validators against real responses, never assumed schemas.
+
+**Files changed:** `config/environments.yaml`, `src/client.py` (empty-path →
+base URL), `src/validators/country.py` (v5 contract), `tests/countries/
+test_countries.py` (v5 endpoints + `offset` pagination + capital/population
+rule), `.github/workflows/ci.yml`, `conftest.py` comment, `scripts/ci_summary.py`,
+`README.md`, `CLAUDE.md`.
+
+**Verification:** `pytest` (with key) → **14 passed**; `pytest --env countries`
+→ 4 passed; without the key → 4 skipped (CI-safe). Allure groups results under
+`countries` and `weather`.
