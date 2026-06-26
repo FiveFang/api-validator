@@ -44,8 +44,17 @@ environments.
 - **Test files must not import from other test files.** Shared helpers belong in
   `src/` or in fixtures in the top-level `conftest.py`.
 - Each test carries exactly one environment marker; environment selection is
-  implemented centrally in `conftest.py` (`pytest_collection_modifyitems`), not
-  per-suite.
+  implemented centrally in `conftest.py`, not per-suite.
+- **The `--env` flag must be registered with `pytest_addoption`** in the
+  top-level `conftest.py`, read via `config.getoption("--env")`, and applied by
+  deselecting non-matching markers in `pytest_collection_modifyitems`. Do not
+  implement `--env` by any other means (e.g. env vars or parsing `sys.argv`).
+- **The flag's valid values are derived from the configured environments**, not
+  hardcoded: the choices are every environment name in `config/environments.yaml`
+  plus the `all` sentinel (the default, which runs every environment). Adding a
+  new API must not require editing the selection machinery — only a YAML entry, a
+  matching test marker, and a suite. Likewise the environment markers are
+  registered from those same config-derived names.
 
 ## Environment fixture
 - The single source of per-test environment config is the `env` fixture in the

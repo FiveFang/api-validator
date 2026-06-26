@@ -1,14 +1,16 @@
 """Top-level pytest configuration: the API-agnostic environment layer.
 
 Responsibilities:
-  * Define the ``--env`` CLI flag (countries | weather | both).
+  * Define the ``--env`` CLI flag (any configured environment, or ``all``).
   * Deselect tests whose environment marker doesn't match ``--env``.
   * Provide the ``env`` fixture that injects the right base_url + thresholds,
     resolved from a test's marker — so test code never hardcodes config.
   * Provide the shared ``api_client`` fixture and the response-time gate.
   * Tag each result with its environment for per-environment Allure sections.
 
-Everything here is API-agnostic: the same machinery serves both suites.
+Everything here is API-agnostic and environment-count-agnostic: the set of
+environments is derived from ``config/environments.yaml``, so adding an API
+(YAML entry + marker + suite) requires no change to this core.
 """
 
 from __future__ import annotations
@@ -18,33 +20,40 @@ import pytest
 from src.client import APIClient
 from src.config_loader import Environment, load_environments
 
-# The environment markers a test may carry. Each must match an environment
-# name in config/environments.yaml.
-ENV_MARKERS = ("countries", "weather")
+# Environment names are derived from config — never hardcoded — so the framework
+# scales to any number of APIs. Each name is both a valid ``--env`` value and the
+# marker a test in that environment must carry.
+ENV_NAMES = tuple(load_environments().keys())
+
+# Sentinel ``--env`` value meaning "run every environment" (also the default).
+RUN_ALL = "all"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--env",
         action="store",
-        default="both",
-        choices=[*ENV_MARKERS, "both"],
-        help="Which environment's tests to run: countries, weather, or both (default).",
+        default=RUN_ALL,
+        choices=[*ENV_NAMES, RUN_ALL],
+        help=(
+            "Which environment's tests to run: "
+            f"{', '.join(ENV_NAMES)}, or '{RUN_ALL}' (default, runs every environment)."
+        ),
     )
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    for marker in ENV_MARKERS:
+    for name in ENV_NAMES:
         config.addinivalue_line(
-            "markers", f"{marker}: test targets the '{marker}' environment"
+            "markers", f"{name}: test targets the '{name}' environment"
         )
 
 
 def _marker_of(item: pytest.Item) -> str | None:
     """Return the single environment marker on a test, if any."""
-    for marker in ENV_MARKERS:
-        if item.get_closest_marker(marker):
-            return marker
+    for name in ENV_NAMES:
+        if item.get_closest_marker(name):
+            return name
     return None
 
 
@@ -53,7 +62,7 @@ def pytest_collection_modifyitems(
 ) -> None:
     """Implement the ``--env`` flag by deselecting non-matching tests."""
     selected_env = config.getoption("--env")
-    if selected_env == "both":
+    if selected_env == RUN_ALL:
         return
 
     selected, deselected = [], []
@@ -85,7 +94,7 @@ def env(request: pytest.FixtureRequest, environments: dict[str, Environment]) ->
     if marker is None:
         raise pytest.UsageError(
             f"Test {request.node.nodeid} must carry one of the environment "
-            f"markers: {ENV_MARKERS}"
+            f"markers: {ENV_NAMES}"
         )
     if marker not in environments:
         raise pytest.UsageError(f"No configuration for environment '{marker}'")

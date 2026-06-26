@@ -42,7 +42,7 @@ Skills for generating new tests/validators are in `.claude/skills/`.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                  # both environments
+pytest                  # all environments (default)
 pytest --env weather    # one environment
 export RESTCOUNTRIES_API_KEY=...   # enables the countries suite (v5)
 ```

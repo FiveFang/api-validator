@@ -58,7 +58,7 @@ are now lists) — the validator and tests are calibrated to this shape.
 
 ## Running tests
 ```bash
-pytest                  # both environments (default)
+pytest                  # all environments (default; same as --env all)
 pytest --env weather    # weather only
 pytest --env countries  # countries only (requires RESTCOUNTRIES_API_KEY)
 ```
