@@ -59,6 +59,30 @@ class CountryValidator(BaseValidator):
         """
 
     @classmethod
+    def unwrap_objects(cls, payload: Any) -> list[dict[str, Any]]:
+        """Validate the v5 response envelope and return its country objects.
+
+        v5 wraps results as ``{"data": {"objects": [...]}}``. Envelope shape
+        checking is schema validation, so it lives here (raising
+        :class:`ValidationError`) rather than as inline ``assert isinstance``
+        checks in the test module — see ``code-style.md``. Be strict: anything
+        not matching the documented envelope is a contract violation.
+        """
+        if not isinstance(payload, Mapping):
+            raise ValidationError(
+                f"Expected a v5 envelope object, got {type(payload).__name__}"
+            )
+        data = payload.get("data")
+        if not isinstance(data, Mapping):
+            raise ValidationError(f"Missing 'data' object in response: {payload!r:.200}")
+        objects = data.get("objects")
+        if not isinstance(objects, list):
+            raise ValidationError(
+                f"Missing 'data.objects' list in response: {payload!r:.200}"
+            )
+        return objects
+
+    @classmethod
     def common_name(cls, payload: Mapping[str, Any]) -> str:
         """Safely extract ``payload["names"]["common"]``.
 

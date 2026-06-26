@@ -41,6 +41,7 @@ _CITY_PARAMS = [pytest.param(city, id=city["name"]) for city in _CITIES]
 @pytest.mark.parametrize("city", _CITY_PARAMS)
 def test_city_forecast(
     city: dict[str, Any],
+    env: Any,
     api_client: Any,
     assert_within_threshold: Any,
 ) -> None:
@@ -64,7 +65,17 @@ def test_city_forecast(
 
     # Schema, hourly count > 0, temperature range, and timezone presence are
     # all enforced by the validator.
-    ForecastValidator().validate(payload)
+    validator = ForecastValidator()
+    validator.validate(payload)
+
+    # YAML-driven floor: the forecast must carry at least min_results_count
+    # hourly readings. The validator owns the non-empty schema invariant; the
+    # config-driven minimum is enforced here in the test (validators stay
+    # config-agnostic), reading the gate from the Environment.
+    assert validator.hourly_count(payload) >= env.min_results_count, (
+        f"{city['name']}: forecast has {validator.hourly_count(payload)} hourly "
+        f"readings, below min_results_count={env.min_results_count}"
+    )
 
     # Open-Meteo snaps to its grid; require the echoed coordinates to be close
     # to what we requested (loose tolerance).
