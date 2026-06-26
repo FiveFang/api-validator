@@ -1,0 +1,54 @@
+# Declarative spec for the `weather` environment (Open-Meteo forecast).
+#
+# This replaces the hand-written tests/weather/test_weather.py: the same
+# coverage (forecast schema + range via the validator, coordinate tolerance,
+# hourly-count gate, timezone presence) is now data, executed by the generic
+# runner in tests/test_spec_runner.py. Cases are loaded from test_data/cities.json
+# (parametrization stays JSON-driven), and ${case.*} / ${env.*} tokens inject the
+# per-city data and the YAML thresholds.
+
+environment: weather
+
+checks:
+  - name: Forecast schema and sanity
+    cases: cities.json
+    case_id: name
+    request:
+      path: forecast
+      params:
+        latitude: "${case.latitude}"
+        longitude: "${case.longitude}"
+        hourly: temperature_2m
+        timezone: auto
+    expect_status: 200
+    # Schema, hourly-non-empty, and temperature-range all enforced by the validator.
+    validator: ForecastValidator
+    validate: single
+    asserts:
+      # Open-Meteo snaps to its grid; echoed coords must be close to requested.
+      - path: "$.latitude"
+        approx: "${case.latitude}"
+        tol: 1.0
+      - path: "$.longitude"
+        approx: "${case.longitude}"
+        tol: 1.0
+      # YAML-driven floor: at least min_results_count hourly readings.
+      - path: "$.hourly.time"
+        length_gte: "${env.min_results_count}"
+
+  - name: Resolved timezone is a non-empty string
+    cases: cities.json
+    case_id: name
+    request:
+      path: forecast
+      params:
+        latitude: "${case.latitude}"
+        longitude: "${case.longitude}"
+        hourly: temperature_2m
+        timezone: auto
+    expect_status: 200
+    asserts:
+      - path: "$.timezone"
+        type: str
+      - path: "$.timezone"
+        non_empty: true
