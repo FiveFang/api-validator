@@ -44,17 +44,30 @@ jobs:
       # Bonus: surface a test summary in the job output.
       - name: Write job summary
         if: always()
+        continue-on-error: true
         run: python scripts/ci_summary.py reports/junit.xml >> "$GITHUB_STEP_SUMMARY"
 
       # Generate a static Allure HTML report (best-effort; never fails the build
-      # — the test step above is the gate).
+      # — the test step above is the gate). Uses the Allure CLI directly rather
+      # than a Docker action so job setup can't fail on a missing base image.
+      - name: Set up Java for Allure
+        if: always()
+        continue-on-error: true
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Generate Allure report
         if: always()
         continue-on-error: true
-        uses: simple-elf/allure-report-action@v1.9
-        with:
-          allure_results: allure-results
-          allure_report: allure-report
+        env:
+          ALLURE_VERSION: 2.29.0
+        run: |
+          curl -fsSL -o allure.tgz \
+            "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz"
+          tar -xzf allure.tgz
+          "allure-${ALLURE_VERSION}/bin/allure" generate allure-results -o allure-report --clean
 
       - name: Upload Allure results
         if: always()
