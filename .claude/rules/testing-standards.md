@@ -22,7 +22,11 @@ non-negotiable rules for any test added to this repo.
   response-time / result-count gates come from `config/environments.yaml`,
   injected via the `env` / `api_client` fixtures.
 - **Every test must call `assert_within_threshold`** after each request so the
-  YAML-driven response-time gate is enforced uniformly.
+  YAML-driven response-time gate is enforced uniformly. The `APIClient`
+  *measures* each request's time (returned as `TimedResponse.elapsed_seconds`);
+  the test *enforces* the threshold by passing that result to the gate. Timing
+  measurement and gate enforcement are deliberately separate — see the HTTP
+  section of `code-style.md`.
 - Values that are *intrinsic properties of the data under test* (e.g. "Europe
   has > 40 countries", "temperature is within -80..60°C") are allowed as named
   module-level constants with an explanatory comment — they are not environment

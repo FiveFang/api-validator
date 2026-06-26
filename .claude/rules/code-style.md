@@ -26,8 +26,14 @@ generic PEP 8 and encode this framework's conventions.
 
 ## HTTP
 - All HTTP goes through `APIClient` (`src/client.py`). Tests never call
-  `requests` directly. The client owns base-URL joining, auth headers, timeouts,
-  and timing.
+  `requests` directly. The client owns base-URL joining, auth headers, the
+  request timeout, and *measuring* response time — every `get()` returns a
+  `TimedResponse` carrying `elapsed_seconds`.
+- The client measures timing but does **not** enforce the response-time gate.
+  Threshold enforcement lives in the shared `assert_within_threshold` helper
+  (top-level `conftest.py`), which reads `max_response_time` from the
+  `Environment` and is called by tests. This keeps the client API-agnostic and
+  the YAML-driven gate in one place. See `testing-standards.md`.
 
 ## Docstrings & comments
 - Every module, validator class, and non-trivial fixture has a docstring
