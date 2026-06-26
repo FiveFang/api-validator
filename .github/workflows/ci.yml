@@ -65,7 +65,7 @@ jobs:
       # Bring previous run's history into allure-results so Allure trend graphs
       # persist across runs. First run has no gh-pages branch yet — that's fine.
       - name: Restore Allure history
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
         continue-on-error: true
         uses: actions/checkout@v4
         with:
@@ -73,7 +73,7 @@ jobs:
           path: gh-pages
 
       - name: Seed history into results
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
         continue-on-error: true
         run: |
           if [ -d gh-pages/history ]; then
@@ -117,8 +117,11 @@ jobs:
           if-no-files-found: ignore
 
       # Publish the HTML report to the gh-pages branch (only on main).
+      # `always()` is required: without it GitHub implicitly ANDs the condition
+      # with success(), so a failing test run would skip publishing and the
+      # site would keep showing the last green run instead of the failures.
       - name: Publish Allure report to GitHub Pages
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
