@@ -6,6 +6,10 @@ on:
     branches: ['**']
   pull_request:
 
+# Allow the workflow token to push the report to the gh-pages branch.
+permissions:
+  contents: write
+
 jobs:
   test:
     name: Run API validation suite
@@ -58,6 +62,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Bring previous run's history into allure-results so Allure trend graphs
+      # persist across runs. First run has no gh-pages branch yet — that's fine.
+      - name: Restore Allure history
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Seed history into results
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        continue-on-error: true
+        run: |
+          if [ -d gh-pages/history ]; then
+            mkdir -p allure-results/history
+            cp -r gh-pages/history/* allure-results/history/ || true
+          fi
+
       - name: Generate Allure report
         if: always()
         continue-on-error: true
@@ -92,3 +115,13 @@ jobs:
           name: junit-report
           path: reports/junit.xml
           if-no-files-found: ignore
+
+      # Publish the HTML report to the gh-pages branch (only on main).
+      - name: Publish Allure report to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./allure-report
+          publish_branch: gh-pages
+          # keep_files: false (default) -> report's index.html sits at the site root
