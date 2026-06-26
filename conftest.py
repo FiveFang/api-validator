@@ -15,10 +15,13 @@ environments is derived from ``config/environments.yaml``, so adding an API
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from src.client import APIClient
 from src.config_loader import Environment, load_environments
+from src.reporters.summary import EnvironmentSummaryReporter
 
 # Environment names are derived from config — never hardcoded — so the framework
 # scales to any number of APIs. Each name is both a valid ``--env`` value and the
@@ -27,6 +30,11 @@ ENV_NAMES = tuple(load_environments().keys())
 
 # Sentinel ``--env`` value meaning "run every environment" (also the default).
 RUN_ALL = "all"
+
+# A concrete BaseReporter (the framework's custom-summary plug-in point). It
+# accumulates per-environment outcomes during the run and is printed at the end;
+# session-scoped via this module, which pytest loads once.
+_ENV_REPORTER = EnvironmentSummaryReporter()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -47,6 +55,29 @@ def pytest_configure(config: pytest.Config) -> None:
         config.addinivalue_line(
             "markers", f"{name}: test targets the '{name}' environment"
         )
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    """Feed each test's outcome to the per-environment summary reporter.
+
+    Record pass/fail on the ``call`` phase and skips on ``setup`` (where pytest
+    raises skips), resolving the environment from the test's marker keywords.
+    """
+    if report.when == "call":
+        outcome = report.outcome  # "passed" or "failed"
+    elif report.when == "setup" and report.outcome == "skipped":
+        outcome = "skipped"
+    else:
+        return
+    environment = next((name for name in ENV_NAMES if name in report.keywords), "unknown")
+    _ENV_REPORTER.record(environment, report.nodeid, outcome)
+
+
+def pytest_terminal_summary(terminalreporter: Any) -> None:
+    """Print the per-environment summary (terminal + CI job output)."""
+    terminalreporter.write_sep("-", "Per-environment summary")
+    for line in _ENV_REPORTER.summary().splitlines():
+        terminalreporter.write_line(line)
 
 
 def _marker_of(item: pytest.Item) -> str | None:

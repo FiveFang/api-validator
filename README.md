@@ -112,6 +112,11 @@ overwrites its own subtree. Only the `main` report accumulates trend history.
   environment, so the gate is YAML-driven, never hardcoded. The client pools and
   warms connections per environment so the gate measures steady-state API
   latency, not one-off DNS/TLS setup.
+- **Reporting.** Allure is primary (per-environment sections). Alongside it, a
+  concrete `BaseReporter` — `EnvironmentSummaryReporter` (`src/reporters/summary.py`)
+  — is wired in `conftest.py` to print a per-environment passed/failed/skipped
+  summary to the terminal and CI job output. Custom summaries plug in by
+  extending `BaseReporter`.
 
 ## Adding a new API / environment
 The framework is environment-count-agnostic: the set of environments is derived
