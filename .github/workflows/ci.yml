@@ -1,9 +1,12 @@
 name: CI
 
-# Trigger on push to ANY branch, plus PRs.
+# Trigger on push to ANY branch (except gh-pages, which is the publish target),
+# plus PRs.
 on:
   push:
-    branches: ['**']
+    branches:
+      - '**'
+      - '!gh-pages'
   pull_request:
 
 # Allow the workflow token to push the report to the gh-pages branch.
@@ -116,15 +119,31 @@ jobs:
           path: reports/junit.xml
           if-no-files-found: ignore
 
-      # Publish the HTML report to the gh-pages branch (only on main).
+      # Decide where on gh-pages to publish: the site root for main, a
+      # per-branch preview folder (preview/<branch>/) for any other branch.
+      - name: Compute Pages destination
+        if: always() && github.event_name == 'push' && github.ref != 'refs/heads/gh-pages'
+        id: pages_dest
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "dir=" >> "$GITHUB_OUTPUT"          # root
+          else
+            echo "dir=preview/${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Publish the HTML report to the gh-pages branch on every branch push
+      # (main -> site root; others -> /preview/<branch>/).
       # `always()` is required: without it GitHub implicitly ANDs the condition
-      # with success(), so a failing test run would skip publishing and the
-      # site would keep showing the last green run instead of the failures.
+      # with success(), so a failing test run would skip publishing and the site
+      # would keep showing the last green run instead of the failures.
+      # `keep_files: true` so the root report and the preview/ folders don't
+      # clobber one another (each publish only overwrites its own destination).
       - name: Publish Allure report to GitHub Pages
-        if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: always() && github.event_name == 'push' && github.ref != 'refs/heads/gh-pages'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./allure-report
           publish_branch: gh-pages
-          # keep_files: false (default) -> report's index.html sits at the site root
+          destination_dir: ${{ steps.pages_dest.outputs.dir }}
+          keep_files: true
