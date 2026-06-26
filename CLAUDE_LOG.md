@@ -433,3 +433,47 @@ two `.claude/skills` and `framework-rules.md`.
 **Files changed:** `.github/workflows/ci.yml`, `README.md`.
 
 **Follow-up:** clean up throwaway PR #1 / `ci-trigger-test` branch when convenient.
+
+## 2026-06-26 — Session 13: Per-branch Allure previews + repository-ruleset blocker
+
+**Summary:** Made CI publish a separate Allure report per branch — `main` to the
+site root, every other branch to `preview/<branch>/` — so feature branches get a
+live, shareable report without clobbering the canonical one. Also worked around a
+GitHub repository ruleset that was silently blocking pushes.
+
+**Branch-preview publishing:** Reworked the `gh-pages` publish in `ci.yml`:
+- New "Compute Pages destination" step sets `dir=` (root) for `refs/heads/main`
+  and `dir=preview/<branch>/` otherwise, via `github.ref_name`.
+- The publish step (`peaceiris/actions-gh-pages@v4`) now uses
+  `destination_dir: ${{ steps.pages_dest.outputs.dir }}` with `keep_files: true`,
+  so the root report and each `preview/<branch>/` folder coexist — a publish only
+  overwrites its own subtree instead of wiping siblings.
+- Both the destination and publish steps are gated
+  `always() && github.event_name == 'push' && github.ref != 'refs/heads/gh-pages'`
+  (keeps publishing on failing test runs; never re-triggers off the publish
+  branch itself). Added `'!gh-pages'` to the `push` trigger to match.
+- The Restore/Seed Allure-history steps stay gated to `main` push only, so trend
+  history accumulates on the canonical report and previews start clean.
+
+**Repository-ruleset blocker:** Pushes were rejected by an org/repo **ruleset**
+("branch-protection", id 18157287) targeting `~ALL` branches with
+`pull_request` + `code_scanning` + `code_quality` + `copilot_code_review` rules
+and *no* bypass actors — so even `main` couldn't be pushed directly and no PR
+status could satisfy the code-scanning/quality rules. Preserved the work on a
+local branch and reported; the user **disabled the rules**, after which the
+`main` and `add-new-api` pushes went through. (Newer rulesets, not legacy branch
+protection — the distinction matters for where to look in repo settings.)
+
+**Verification (live):** After pushing `main` and `add-new-api`, both CI runs
+published and now coexist on `gh-pages`:
+- Root (https://fivefang.github.io/api-validator/) — `main`: 14 tests, 10 passed
+  / 4 failed (countries 403, quota-frozen account).
+- Preview (https://fivefang.github.io/api-validator/preview/add-new-api/) —
+  19 tests, 15 passed / 4 failed: weather 10/10, **pokemon 5/5**, countries 0/4.
+  Confirms the 3rd-API onboarding works end-to-end and previews don't clobber root.
+
+**Files changed:** `.github/workflows/ci.yml`.
+
+**Follow-up:** user may re-enable the "branch-protection" ruleset later (pushes
+to `main` would then require PRs); `ci-trigger-test` and the `add-new-api` demo
+branch are intentionally kept.
