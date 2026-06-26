@@ -87,17 +87,3 @@ Countries v3.1 to v5**:
    invariant: non-negative for all, strictly positive only for countries with a
    capital.
 
-## Optional enhancements (not required for compliance)
-
-Neither blocks any requirement; both are quality/score-optimization ideas:
-
-1. ~~**Make `BaseReporter` concrete.**~~ ✅ **Done.** Added
-   `EnvironmentSummaryReporter` (`src/reporters/summary.py`), a concrete
-   `BaseReporter` wired in `conftest.py` that prints a per-environment
-   passed/failed/skipped summary to the terminal and CI job output. The contract
-   is no longer vacuous.
-2. **Lift test-logic reuse to a shared helper.** Reuse is currently at the
-   fixture/client/validator-base level; a shared `src/` endpoint-check helper would
-   reduce per-suite duplication further. (A full declarative/DSL version of this
-   exists as a separate, unmerged backup branch — deliberately not part of the
-   submission, as plain pytest is the right fit at this scale.)
