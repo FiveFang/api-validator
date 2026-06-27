@@ -29,6 +29,8 @@ Authoritative rules live in `.claude/rules/` and **must** be followed:
 - `code-style.md` — validators in `src/validators/`, type hints, no inline asserts.
 - `framework-rules.md` — reporters extend `BaseReporter`; tests never import other
   tests; all config in `config/`.
+- `ai-grounding.md` — source fidelity (no hallucinated features), plan-then-
+  implement, self-verify against the boundaries above, flag convention conflicts.
 
 Skills for generating new tests/validators are in `.claude/skills/`.
 

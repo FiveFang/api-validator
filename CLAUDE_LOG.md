@@ -611,3 +611,26 @@ and documented in a follow-up.
 
 **Note:** the commands are local-only; CI publishes its own Allure report from
 `ci.yml` and is unaffected. `allure-results/`/`allure-report/` stay gitignored.
+
+## 2026-06-27 — Session 17: AI grounding rules moved to `.claude/rules/`
+
+**Summary:** Extracted the AI Grounding & Verification rules (added inline to
+`CLAUDE.md`) into their own rule file, keeping `CLAUDE.md` a thin map and matching
+the established `.claude/rules/` convention.
+
+**Work done:**
+- **New rule file.** Created `.claude/rules/ai-grounding.md` with the four rules
+  (strict source fidelity, plan-then-implement, verification protocol,
+  deterministic output), cleaned up with proper headers/bullets. The original
+  paste referenced "the boundaries defined above"; in the standalone file this is
+  made concrete by naming `framework-rules.md` / `code-style.md` /
+  `testing-standards.md`.
+- **CLAUDE.md.** Removed the inline rules block and added a one-line pointer under
+  *Project rules* so the rules still load into context each session via the
+  reference, consistent with the other three rule files.
+
+**Files changed:** `.claude/rules/ai-grounding.md` (new), `CLAUDE.md`,
+`CLAUDE_LOG.md`.
+
+**Note:** behavioural/meta rules for the assistant — no test or framework logic
+changed; CI unaffected.
