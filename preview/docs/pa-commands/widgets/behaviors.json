@@ -1,0 +1,1 @@
+{"total":2,"items":[{"uid":"2fec7d2770d045ae6c9af59086e75b90","name":"Countries","statistic":{"failed":4,"broken":0,"skipped":0,"passed":0,"unknown":0,"total":4}},{"uid":"9491296dbd52612fbb6e7cb4a1c22035","name":"Weather forecast","statistic":{"failed":0,"broken":0,"skipped":0,"passed":10,"unknown":0,"total":10}}]}
