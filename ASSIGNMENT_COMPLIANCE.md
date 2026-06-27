@@ -60,6 +60,7 @@ No required changes outstanding.
 | --- | --- | --- |
 | `.claude/rules/` — ≥3 framework-specific files | ✅ Met | `code-style.md`, `framework-rules.md`, `testing-standards.md`. |
 | `.claude/skills/` — ≥2 files | ✅ Met | `test-generator.md`, `validator-generator.md`. |
+| `.claude/commands/` — project slash commands | ✅ Met (exceeds) | `pa-add-api`, `pa-generate-tests`, `pa-run-tests` — thin one-step wrappers over the rules + skills (`pa-` namespaced). Local Claude Code conveniences only; no test/framework logic, CI unaffected. |
 | Log: ≥2 tasks with parallel agents (what / why-independent / time saved) | ✅ Met | `CLAUDE_LOG.md` Session 4: Agent A (countries) + Agent B (weather), independent (frozen base, disjoint files), ~270s (~46%) saved. |
 | Log: one architectural decision validated with Claude | ✅ Met | Session 4: `--env` via markers vs. shelling out; chose markers, followed it. |
 | Log: one case Claude was **wrong** (what + why) | ✅ Met (exceeds) | Session 4: two cases (v3.1/`rc_live_demo`; fresh-client cold-start); more in Sessions 5 & 6. |
