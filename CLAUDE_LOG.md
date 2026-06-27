@@ -634,3 +634,20 @@ the established `.claude/rules/` convention.
 
 **Note:** behavioural/meta rules for the assistant — no test or framework logic
 changed; CI unaffected.
+
+## 2026-06-27 — Session 18: README architecture diagram (Mermaid)
+
+**Summary:** Added a Mermaid layering diagram to the README's *How it works*
+section so the `src/` core ↔ `tests/<env>/` suite boundary and the
+request→validate→gate→report flow are shown visually, not only in prose.
+
+**Work done:**
+- **README.md.** Inserted a `flowchart TB` Mermaid diagram at the top of *How it
+  works*, grouping Configuration / API-agnostic core / Environment suites as
+  subgraphs and tracing the live flow (config → env fixture → suites → APIClient →
+  live APIs → validators + threshold gate → reporters → Allure). Renders natively
+  on GitHub; complements the existing prose bullets.
+
+**Files changed:** `README.md`, `CLAUDE_LOG.md`.
+
+**Note:** docs-only — no test, config, or framework logic changed; CI unaffected.

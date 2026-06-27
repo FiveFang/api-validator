@@ -106,6 +106,41 @@ overwrites its own subtree. Only the `main` report accumulates trend history.
   `RESTCOUNTRIES_API_KEY`).
 
 ## How it works
+
+```mermaid
+flowchart TB
+    subgraph config["Configuration (single source of truth)"]
+        yaml["config/environments.yaml<br/>base URLs · thresholds · auth env-var names"]
+        data["test_data/*.json<br/>parametrization cases"]
+    end
+
+    subgraph core["API-agnostic core — src/ + conftest.py (never imports tests/)"]
+        loader["config_loader.py<br/>YAML → frozen Environment"]
+        envfix["env fixture (conftest.py)<br/>resolves Environment from marker"]
+        client["APIClient<br/>pooled · timed · optional Bearer"]
+        validators["validators/<br/>BaseValidator → Country/Forecast"]
+        gate["assert_within_threshold<br/>YAML-driven response-time gate"]
+        reporters["reporters/<br/>BaseReporter → EnvironmentSummaryReporter"]
+    end
+
+    subgraph suites["Environment suites — tests/&lt;env&gt;/ (one marker each)"]
+        countries["tests/countries/<br/>@pytest.mark.countries"]
+        weather["tests/weather/<br/>@pytest.mark.weather"]
+    end
+
+    apis[("Live APIs<br/>REST Countries v5 · Open-Meteo")]
+    report["Allure report<br/>(per-environment sections)"]
+
+    yaml --> loader --> envfix
+    data --> suites
+    envfix -->|injects base URL + thresholds + auth| suites
+    suites -->|GET via| client --> apis
+    apis -->|TimedResponse| suites
+    suites -->|validate shape| validators
+    suites -->|enforce latency| gate
+    suites --> reporters --> report
+```
+
 - **Environment abstraction.** `config_loader.py` parses YAML into frozen
   `Environment` objects. The top-level `conftest.py` `env` fixture resolves each
   test's environment from its `@pytest.mark.<env>` marker and injects base URL +
