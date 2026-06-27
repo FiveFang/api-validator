@@ -577,3 +577,37 @@ deliberately shelved — a full declarative-spec DSL on a separate branch.
 **Follow-ups:**
 - Optional gap 2 (shared `src/runner.py` reuse helper) intentionally not done.
 - DSL backup lives on `feature/api-agnostic-dsl` / PR #6 if ever wanted.
+
+## 2026-06-27 — Session 16: Claude Code slash commands (`/pa-*`) + docs
+
+**Summary:** Added three project slash commands that wrap the existing rules and
+skills into one-step workflows, namespaced with a `pa-` prefix, and documented
+them across README + compliance. Commands are local Claude Code conveniences —
+no test/framework logic, CI unaffected. Merged to `main` (PR #7), then prefixed
+and documented in a follow-up.
+
+**Work done:**
+- **Commands (`.claude/commands/`).** `/pa-add-api` (onboard a new API as a new
+  environment end to end: gather/probe → confirm → config entry → validator →
+  tests → run green → log), `/pa-generate-tests` ((re)generate the validator +
+  suite for an env; if the env isn't in config yet, offer to add it and circle
+  back so it never yields a zero-test suite), `/pa-run-tests` (run one env or
+  `all`, source `.env` for `countries`, then build a self-contained Allure report
+  and open it locally).
+- **Dry-run.** Verified `/pa-add-api` end to end with a throwaway env (auto-derived
+  `--env`, generated tests passed), then reverted — proving the command path needs
+  zero core changes. Separately exercised the Allure-opening `/pa-run-tests`.
+- **`pa-` prefix.** Renamed all three command files (`git mv`) to namespace them
+  away from Claude Code built-ins; fixed the internal `/pa-add-api` cross-ref in
+  `pa-generate-tests`.
+- **Docs.** README — new *Claude Code commands* section (table), Layout entry,
+  *Running tests* + *Adding a new API* call-outs, and a *Design decisions* bullet
+  ("`/pa-*` wrap, never replace"). `ASSIGNMENT_COMPLIANCE.md` — added a Claude Code
+  Usage row (exceeds).
+
+**Files changed:** `.claude/commands/pa-add-api.md` / `pa-generate-tests.md` /
+`pa-run-tests.md` (renamed from un-prefixed), `README.md`,
+`ASSIGNMENT_COMPLIANCE.md`, `CLAUDE_LOG.md`.
+
+**Note:** the commands are local-only; CI publishes its own Allure report from
+`ci.yml` and is unaffected. `allure-results/`/`allure-report/` stay gitignored.

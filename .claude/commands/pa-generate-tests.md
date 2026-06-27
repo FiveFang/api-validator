@@ -14,7 +14,7 @@ Read the target env from `$ARGUMENTS` (ask if omitted). Then check
 - **If it is NOT declared**, ask:
   > "`<name>` isn't in `config/environments.yaml` yet. Do you want to (a) **add a
   > new environment** now, or (b) point me at an **existing** one instead?"
-  - **(a) add a new one** → run the full onboarding flow (the `/add-api` steps:
+  - **(a) add a new one** → run the full onboarding flow (the `/pa-add-api` steps:
     gather details → confirm → declare the environment → validator → tests), then
     **circle back to Step 2 here**.
   - **(b) existing** → ask for the correct env name and restart Step 1.

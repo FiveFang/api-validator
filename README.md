@@ -33,6 +33,7 @@ src/
 conftest.py                  # --env flag, env fixture, response-time gate
 tests/countries/, tests/weather/
 .claude/rules/, .claude/skills/   # Claude Code project rules & skills
+.claude/commands/                 # /pa-* slash commands (onboard, generate, run)
 .github/workflows/ci.yml     # CI: run suite, enforce gate, upload Allure report
 ```
 
@@ -65,6 +66,11 @@ pytest                  # all environments (default; same as --env all)
 pytest --env weather    # weather only
 pytest --env countries  # countries only (requires RESTCOUNTRIES_API_KEY)
 ```
+
+> **In Claude Code:** `/pa-run-tests [env]` runs the suite (handling `.env` token
+> sourcing for `countries`), then builds a self-contained Allure report and opens
+> it locally. It's a developer convenience and never runs in CI. See
+> [Claude Code commands](#claude-code-commands).
 
 ### Allure report (per-environment sections)
 ```bash
@@ -171,6 +177,11 @@ and `test-generator`, follows `.claude/rules/`, runs the suite, and iterates
 until green. You can also invoke the skills directly: `/validator-generator`,
 `/test-generator`.
 
+**One-step path:** run **`/pa-add-api`** to do all of steps 1–3 (and the run +
+log) in one guided command, or **`/pa-generate-tests`** to (re)generate just the
+validator + suite for an environment. See
+[Claude Code commands](#claude-code-commands).
+
 A one-shot prompt looks like:
 
 > "I added a `posts` env (`https://api.example.com/v1`) to `config/environments.yaml`.
@@ -192,6 +203,21 @@ What makes it one-shot (include as much as you can):
 Shortcut for a public API: say *"the API is public, probe it yourself to learn
 the shape"* and Claude will hit a few endpoints to discover the response
 structure before generating (as was done for REST Countries v5 and Open-Meteo).
+
+## Claude Code commands
+Three project slash commands live in `.claude/commands/` and wrap the rules +
+skills into one-step workflows. All are namespaced with a `pa-` prefix
+(*p*roject *a*pi-validator) to keep them distinct from built-ins:
+
+| Command | What it does |
+| --- | --- |
+| `/pa-add-api [name]` | Onboard a new API as a new environment end to end: gather details (or probe a public API), confirm, add the `config/environments.yaml` entry, generate the validator + test suite, run them green, and log it. |
+| `/pa-generate-tests [env]` | (Re)generate the validator + suite for an environment. If the env isn't declared in config yet, it offers to add it first and circles back — so it never produces a zero-test suite. |
+| `/pa-run-tests [env]` | Run the suite for one env (or `all`), sourcing `.env` for `countries`, then build a self-contained Allure report and open it locally. Read-only. |
+
+These are **developer conveniences invoked in Claude Code** and never run in CI;
+they only orchestrate the same skills, rules, and `pytest`/Allure flow documented
+above. The `/pa-*` markdown files are the source of truth for each command.
 
 ## CI
 `.github/workflows/ci.yml` triggers on push to any branch (and PRs): sets up
@@ -245,6 +271,11 @@ Notes:
   countries that have a capital.
 - **Open-Meteo** returns grid-snapped coordinates and resolves `timezone=auto`
   to a real IANA name; tests allow a 1° coordinate tolerance accordingly.
+- **`/pa-*` commands wrap, never replace.** The slash commands in
+  `.claude/commands/` are thin orchestration over the existing rules, skills, and
+  `pytest`/Allure flow — they add no test logic or framework behaviour and run
+  only inside Claude Code, so CI and a plain `pytest` invocation are unaffected.
+  The `pa-` prefix namespaces them away from Claude Code built-ins.
 - **Test status philosophy.** The `--env` flag *deselects* the non-matching
   environment's tests during collection (via `pytest_deselected` in
   `conftest.py`), so a targeted run reports e.g. `10 passed, 4 deselected` —
