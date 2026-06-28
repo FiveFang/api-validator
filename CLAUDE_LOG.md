@@ -651,3 +651,65 @@ request→validate→gate→report flow are shown visually, not only in prose.
 **Files changed:** `README.md`, `CLAUDE_LOG.md`.
 
 **Note:** docs-only — no test, config, or framework logic changed; CI unaffected.
+
+---
+
+## 2026-06-28 — Session 19: Edge case analysis — grounded vs hallucinated
+
+**Summary:** Acting as Principal QE, generated two rounds of edge cases for the
+REST Countries v5 and Open-Meteo endpoints — one with the AI grounding rule
+enforced, one without — then cross-referenced both lists against the actual
+implementation to identify invalid or hallucinated cases.
+
+**Method:** Read `src/validators/country.py`, `src/validators/weather.py`,
+`src/validators/base.py`, `src/client.py`, `src/config_loader.py`,
+`tests/countries/test_countries.py`, `tests/weather/test_weather.py`, and
+`test_data/cities.json` before making any judgments. Every verdict is grounded
+in the code, not assumed.
+
+**Results — invalid / hallucinated edge cases identified:**
+
+*From the grounded list (with AI grounding rule — 5 of ~26 were wrong):*
+- **"Null values in hourly array cause TypeError"** — HALLUCINATED. `ForecastValidator.validate_custom` explicitly checks `if temp is None` (line 67) and raises a clean `ValidationError`. Already handled.
+- **"Missing token → suite should skip not crash"** — INVALID. Already fully handled: `config_loader.py` resolves the token at load time; the `env` fixture skips before any HTTP call if `requires_auth=True` and `auth_token=None`.
+- **"5 city tests run in parallel — thread-safety concern"** — HALLUCINATED. pytest is single-threaded by default. Without `pytest-xdist`, tests run sequentially. No concurrency, no race condition.
+- **"Countries appear in multiple regions in v5"** — HALLUCINATED. The `region` field is a plain `str` in v5. Single region per country. Multiple region membership does not exist in this API.
+- **"Hourly count != 168 due to DST/leap days"** — INVALID as framed. Assertion is `>= env.min_results_count` (1 from YAML), never `== 168`. A 167 or 169 entry response passes our tests.
+
+*From the unconstrained list (without AI grounding rule — 10 of ~25 were wrong):*
+- **SQL injection / XSS** — IRRELEVANT. Read-only external JSON APIs; no SQL layer we touch; no HTML reflection surface.
+- **Boolean as 0/1** — IRRELEVANT. Neither validator declares boolean fields.
+- **Null mid-array TypeError** — HALLUCINATED (same as above).
+- **Parallel client thread safety / warm-up race condition** — HALLUCINATED. Sequential execution.
+- **HTTP/2 vs HTTP/1.1** — HALLUCINATED. `requests` doesn't support HTTP/2 natively; always HTTP/1.1.
+- **Countries test failure affecting weather fixture teardown** — INVALID. pytest always runs fixture teardown regardless of outcome.
+- **Integer overflow for large populations** — INVALID. Python integers have arbitrary precision.
+- **Disputed territories in multiple regions** — HALLUCINATED. Single `region: str` per country in v5.
+- **hourly_units switching to Fahrenheit by locale** — HALLUCINATED. Open-Meteo uses fixed units per variable name; `temperature_2m` is always Celsius.
+- **Unknown fields breaking the validator** — INVALID. `BaseValidator` only checks `required_fields` and `field_types`; extra response fields are silently ignored by design.
+- **`start_date` explicit vs default behaviour** — INVALID. We never pass `start_date` in any request; the difference is unreachable by our tests.
+
+**Key finding:** The grounding rule roughly halved the hallucination rate (5/26 vs 10/25).
+The cases that slipped through both modes were about implementation details the
+code had already solved (null handling, token skip) or Python runtime behaviour
+that doesn't exist (integer overflow, thread parallelism).
+
+**Valid edge cases still worth implementing (from both lists):**
+- 404 on invalid country/region name — untested negative path
+- Invalid coordinates (latitude=91) returning a 4xx
+- Last-page pagination termination edge (offset exactly on boundary)
+- Antarctica in `/all` — empty `currencies`/`languages` lists; `population: 0` without a capital
+- `names` nested shape validation — validator only checks `names` is a `dict`, not `names.common` structure
+- Countries with multiple capitals (South Africa) — `capitals` list length > 1
+- Half-hour timezone offsets (Lord Howe Island, India) — IANA name presence checked, offset not
+
+**Files changed:** `CLAUDE_LOG.md`.
+
+**Note:** analysis only — no test or framework code changed.
+
+**How to further reduce hallucination (in order of impact):**
+1. **Always read the code before answering.** The grounding rule restricts context but doesn't force a code read first. Making it explicit would have caught all 5 grounded-list hallucinations — they were all about code that already existed.
+2. **Confidence rating per item.** Force a `[HIGH]` / `[LOW]` declaration inline per edge case. Low-confidence items get verified against code or the live API before acting on them.
+3. **Separate framework behaviour from API behaviour.** Framework claims (thread safety, fixture teardown, integer overflow) are verifiable from the code. API claims (multiple regions, unit formatting) are only confirmable from a live response. Keeping them in separate categories forces verification at the right layer.
+4. **Add a verification step to the skill.** Update `test-generator.md` to require: *"before generating edge cases, state which ones require live API verification and which can be confirmed from the codebase."*
+5. **Probe the live API for API-behaviour assumptions.** For anything about response shape, pagination, field presence, or status codes — fetch a real response first, same discipline as `/pa-add-api` onboarding.

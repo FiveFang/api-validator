@@ -1,0 +1,60 @@
+Edge Cases — Principal QE Perspective
+
+---
+REST Countries v5
+
+Data shape variations
+- Countries with multiple capitals (South Africa has 3) — does the capitals list assertion handle length > 1?
+- Countries with no official language (some territories have empty languages) — validator shouldn't assert non-empty
+- Countries with multiple currencies — currencies list length > 1
+- Special characters in names (Côte d'Ivoire, Åland Islands) — does the name search encode correctly?
+
+Boundary / pagination
+- Last page is a short page — offset walks past the last full 25-item page; does the paginator terminate correctly on a partial page vs an empty page?
+- offset exceeds total count — does the API return an empty list, a 404, or an error? Is our paginator safe against that?
+- /all with fields param missing a field — what's returned if you request a field that doesn't exist on some countries?
+
+Negative / error paths
+- Country not found — GET /name/notacountry → expect 404, not a 200 with empty body
+- Region not found — GET /region/notaregion → 404 behaviour
+- Invalid/expired token → assert 401, not a schema error
+- Missing token entirely → 401 or 403, suite should skip not crash
+
+Cross-reference integrity
+- Germany found via /name must appear in /region/europe — already tested, but what about territories that belong to a region geographically but aren't sovereign states? Could produce false negatives.
+- Country with disputed region classification — some countries appear in multiple regions in v5; cross-ref could fail if the region returned by /name doesn't match what's in /region
+
+Data correctness
+- Uninhabited territories with population: 0 AND non-empty capitals — does our "capital → population > 0" rule hold? Or can a territory have a listed capital but zero population?
+- currencies field for countries that use another nation's currency (e.g. Montenegro uses EUR but isn't in the Eurozone) — is the field present and correctly typed?
+
+---
+Open-Meteo
+
+Coordinate edge cases
+- Poles — latitude=90 (North Pole), latitude=-90 (South Pole) — valid coordinates, but timezone resolution may fail or return UTC; does our IANA timezone assertion hold?
+- (0, 0) — Null Island — valid coordinates, entirely ocean — API should still respond; what does it return for timezone?
+- Coordinates in the ocean far from land — grid-snap may produce unusual results; our 1° tolerance may not be enough
+- Invalid coordinates — latitude=91, longitude=181 — expect a 4xx, not a 200 with garbage data
+- Negative coordinates (southern hemisphere, western hemisphere) — already in our cities implicitly, but worth asserting explicitly that grid-snapping works symmetrically
+
+Timezone / DST
+- City undergoing DST transition within the 7-day forecast window — timezone label stays the same but offset shifts; does our timezone assertion only check presence, or does it verify the offset too?
+- Cities on a timezone boundary — grid-snapping could land on the other side of the boundary and return a different IANA name than expected
+
+Data completeness
+- Null values in hourly array — the API can return null for a time slot with no data; does ForecastValidator accept nulls in the temperature array or does it fail on them?
+- Hourly count != 168 — the default is 7 days × 24h = 168 entries, but leap days, DST transitions, or a non-default forecast_days param could shift this; is our > 0 assertion too loose?
+- Temperature outside our −80..60°C range — physically possible in Antarctica (recorded −89°C); our constant would flag valid data as a failure
+
+Response time under load
+- Simultaneous parametrized requests — 5 cities run in parallel via pytest; does the pooled client handle concurrent requests correctly, or does connection reuse cause race conditions?
+
+---
+The ones I'd prioritise implementing first:
+1. 404 on invalid country/region name — currently untested, basic negative path
+2. Null values in hourly temperature array — could cause a runtime error in the validator, not just a test failure
+3. Invalid coordinates returning a 4xx — confirms the API contract on bad input
+4. Last-page pagination termination — already hit this class of bug once with offset
+
+with AI Grounding rule
