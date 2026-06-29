@@ -54,14 +54,16 @@ def _paginate(
         params: dict[str, Any] = {"offset": offset}
         if response_fields:
             params["response_fields"] = response_fields
-        response = api_client.get(path, params=params)
-        assert response.status_code == 200, (
-            f"Expected 200 from '{path or '<base>'}' at offset {offset}, "
-            f"got {response.status_code}"
+        # Reuse the shared GET -> status -> latency check for each page. No
+        # validator is passed: the v5 envelope must be unwrapped first, which we
+        # do below with CountryValidator.unwrap_objects.
+        _, payload = run_endpoint_check(
+            api_client, assert_within_threshold, path,
+            params=params,
+            what=f"GET {path or '<all>'} offset={offset}",
         )
-        assert_within_threshold(response, what=f"GET {path or '<all>'} offset={offset}")
 
-        page = CountryValidator.unwrap_objects(response.json())
+        page = CountryValidator.unwrap_objects(payload)
         collected.extend(page)
         if len(page) < _PAGE_SIZE:
             break
