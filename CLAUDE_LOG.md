@@ -713,3 +713,14 @@ that doesn't exist (integer overflow, thread parallelism).
 3. **Separate framework behaviour from API behaviour.** Framework claims (thread safety, fixture teardown, integer overflow) are verifiable from the code. API claims (multiple regions, unit formatting) are only confirmable from a live response. Keeping them in separate categories forces verification at the right layer.
 4. **Add a verification step to the skill.** Update `test-generator.md` to require: *"before generating edge cases, state which ones require live API verification and which can be confirmed from the codebase."*
 5. **Probe the live API for API-behaviour assumptions.** For anything about response shape, pagination, field presence, or status codes — fetch a real response first, same discipline as `/pa-add-api` onboarding.
+
+## 2026-06-28 — Session 20: Enable manual workflow trigger
+
+**Summary:** Added `workflow_dispatch` to CI so the suite can be triggered
+manually from the GitHub Actions tab. Also conducted a Principal QE edge case
+audit — two rounds (grounded vs unconstrained) cross-referenced against the
+implementation to identify invalid or hallucinated cases.
+
+**CI change:**
+- Added `workflow_dispatch:` to the `on:` block in `.github/workflows/ci.yml`.
+  The "Run workflow" button is now available on the Actions tab in GitHub.
