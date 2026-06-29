@@ -8,6 +8,7 @@ on:
       - '**'
       - '!gh-pages'
   pull_request:
+  workflow_dispatch:
 
 # Allow the workflow token to push the report to the gh-pages branch.
 permissions:
