@@ -37,7 +37,7 @@ No required changes outstanding.
 | --- | --- | --- | --- |
 | Environment abstraction design | 30% | ✅ Strong | `ENV_NAMES` derived from config; frozen `Environment`; marker-resolved `env` fixture injects URL/thresholds/auth; `--env` machinery and markers config-derived; `BaseValidator` hierarchy. Adding an API = config + validator + suite, core untouched. |
 | YAML-driven config (zero hardcoded) | 25% | ✅ Strong | No hardcoded URLs/thresholds; `base_url`/`max_response_time`/`min_results_count` flow YAML → `Environment` → tests/gate. `min_results_count` is now actually *enforced* (Session 14 fix). Only intrinsic-data constants remain (e.g. `MIN_EUROPE_COUNTRIES`, temp bounds), which the rules explicitly allow. |
-| Test logic reuse across two APIs | 25% | ✅ Met | Both suites share one `APIClient`, one `BaseValidator` hierarchy, one `assert_within_threshold` gate, the `env`/`api_client` fixtures, the `--env` selection, and the Allure grouping. Per-API code is thin (validator + suite). |
+| Test logic reuse across two APIs | 25% | ✅ Strong | Both suites share one `APIClient`, one `BaseValidator` hierarchy, one `assert_within_threshold` gate, the `env`/`api_client` fixtures, the `--env` selection, and the Allure grouping — **plus** the shared `src/runner.py` `run_endpoint_check` helper that lifts reuse to the test-body level (GET → status → latency → optional validate in one call). Per-API code is now just the domain assertions + validator. |
 | CLI flag implementation | 10% | ✅ Met | `pytest_addoption`; default `all`; deselection logic; choices derived from config. |
 | Allure report per-environment sections | 10% | ✅ Met (exceeds) | Centralized `parent_suite`/`label`; plus GitHub Pages publish, per-branch previews, and `main` trend history. |
 

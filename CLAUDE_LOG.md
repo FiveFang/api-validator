@@ -724,3 +724,36 @@ implementation to identify invalid or hallucinated cases.
 **CI change:**
 - Added `workflow_dispatch:` to the `on:` block in `.github/workflows/ci.yml`.
   The "Run workflow" button is now available on the Actions tab in GitHub.
+
+## 2026-06-28 — Session 21: Shared `run_endpoint_check` runner (closes reuse gap 2)
+
+**Summary:** Lifted test-logic reuse from plumbing-level to test-body-level by
+adding a shared `src/runner.py` helper that both environment suites call. This
+closes the long-standing optional **Gap 2** (the 25% "test logic reuse across
+two APIs" criterion) without building a declarative DSL — the pragmatic middle
+ground noted in `notes.md`.
+
+**Work done:**
+- **New `src/runner.py` — `run_endpoint_check(...)`.** Extracts the three-line
+  sequence every test repeats — GET, assert status, assert latency
+  (`assert_within_threshold`) — into one call, optionally running a validator on
+  the payload. Returns `(response, payload)` so each suite still applies its own
+  domain assertions (min-count gates, cross-reference, coordinate tolerance).
+  Lives in the API-agnostic core (`src/`); imports from `tests/` are forbidden,
+  so it only `TYPE_CHECKING`-imports `src.client` / `src.validators.base`.
+- **Both suites now call it.** `tests/weather/test_weather.py` (both tests) and
+  `tests/countries/test_countries.py` (`test_germany_schema`,
+  `test_name_search_country_appears_in_region`) route their single-shot requests
+  through the helper. Per-API code is now just the domain assertions + validator.
+- **Paginated walk reuses it too.** The countries `_paginate` helper now calls
+  `run_endpoint_check` once per page (passing no validator, since the v5 envelope
+  must be unwrapped before validation) instead of inlining its own
+  GET/status/latency sequence. So every request in both suites — single-shot and
+  paginated — flows through the one shared contract check.
+- **Verified:** full suite **14 passed** (countries 4 + weather 10 with
+  `RESTCOUNTRIES_API_KEY` set, exercising the paginated `region/*` and `/all`
+  walks); `--env weather` 10 passed, 4 deselected.
+
+**Files changed:** `src/runner.py` (new), `tests/weather/test_weather.py`,
+`tests/countries/test_countries.py`, `ASSIGNMENT_COMPLIANCE.md` (gap 2 marked
+closed).

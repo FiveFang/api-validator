@@ -15,6 +15,7 @@ from typing import Any
 import allure
 import pytest
 
+from src.runner import run_endpoint_check
 from src.validators.weather import ForecastValidator
 
 # Repo root = tests/weather/test_weather.py -> parents[2].
@@ -46,27 +47,18 @@ def test_city_forecast(
     assert_within_threshold: Any,
 ) -> None:
     """GET a city's hourly forecast and validate shape, timing, and coords."""
-    timed = api_client.get(
-        "forecast",
+    validator = ForecastValidator()
+    _, payload = run_endpoint_check(
+        api_client, assert_within_threshold, "forecast",
         params={
             "latitude": city["latitude"],
             "longitude": city["longitude"],
             "hourly": "temperature_2m",
             "timezone": "auto",
         },
+        validator=validator,
+        what=f"forecast for {city['name']}",
     )
-
-    assert timed.status_code == 200, (
-        f"{city['name']}: expected 200, got {timed.status_code}"
-    )
-    assert_within_threshold(timed, what=f"forecast for {city['name']}")
-
-    payload = timed.json()
-
-    # Schema, hourly count > 0, temperature range, and timezone presence are
-    # all enforced by the validator.
-    validator = ForecastValidator()
-    validator.validate(payload)
 
     # YAML-driven floor: the forecast must carry at least min_results_count
     # hourly readings. The validator owns the non-empty schema invariant; the
@@ -99,20 +91,16 @@ def test_city_timezone_present(
     assert_within_threshold: Any,
 ) -> None:
     """``timezone=auto`` should resolve to a non-empty IANA timezone string."""
-    timed = api_client.get(
-        "forecast",
+    _, payload = run_endpoint_check(
+        api_client, assert_within_threshold, "forecast",
         params={
             "latitude": city["latitude"],
             "longitude": city["longitude"],
             "hourly": "temperature_2m",
             "timezone": "auto",
         },
+        what=f"forecast for {city['name']}",
     )
-
-    assert timed.status_code == 200
-    assert_within_threshold(timed, what=f"forecast for {city['name']}")
-
-    payload = timed.json()
     timezone = payload.get("timezone")
     assert isinstance(timezone, str) and timezone, (
         f"{city['name']}: expected non-empty timezone string, got {timezone!r}"

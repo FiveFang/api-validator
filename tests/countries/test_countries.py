@@ -23,6 +23,7 @@ from typing import Any
 import allure
 import pytest
 
+from src.runner import run_endpoint_check
 from src.validators.country import CountryValidator
 
 # Test-intrinsic constant: Europe is documented to contain well over 40
@@ -53,14 +54,16 @@ def _paginate(
         params: dict[str, Any] = {"offset": offset}
         if response_fields:
             params["response_fields"] = response_fields
-        response = api_client.get(path, params=params)
-        assert response.status_code == 200, (
-            f"Expected 200 from '{path or '<base>'}' at offset {offset}, "
-            f"got {response.status_code}"
+        # Reuse the shared GET -> status -> latency check for each page. No
+        # validator is passed: the v5 envelope must be unwrapped first, which we
+        # do below with CountryValidator.unwrap_objects.
+        _, payload = run_endpoint_check(
+            api_client, assert_within_threshold, path,
+            params=params,
+            what=f"GET {path or '<all>'} offset={offset}",
         )
-        assert_within_threshold(response, what=f"GET {path or '<all>'} offset={offset}")
 
-        page = CountryValidator.unwrap_objects(response.json())
+        page = CountryValidator.unwrap_objects(payload)
         collected.extend(page)
         if len(page) < _PAGE_SIZE:
             break
@@ -86,13 +89,12 @@ def test_region_europe_has_enough_countries(api_client, assert_within_threshold)
 @allure.title("Germany record matches the country schema contract")
 @pytest.mark.countries
 def test_germany_schema(env, api_client, assert_within_threshold) -> None:
-    response = api_client.get("names.common/germany")
-    assert response.status_code == 200, (
-        f"Expected 200 from names.common/germany, got {response.status_code}"
+    _, payload = run_endpoint_check(
+        api_client, assert_within_threshold, "names.common/germany",
+        what="GET names.common/germany",
     )
-    assert_within_threshold(response, what="GET names.common/germany")
 
-    results = CountryValidator.unwrap_objects(response.json())
+    results = CountryValidator.unwrap_objects(payload)
     # YAML-driven floor: a name lookup must return at least min_results_count.
     assert len(results) >= env.min_results_count, (
         f"names.common/germany returned {len(results)} results, "
@@ -142,13 +144,12 @@ def test_all_countries_have_population(env, api_client, assert_within_threshold)
 @pytest.mark.countries
 def test_name_search_country_appears_in_region(api_client, assert_within_threshold) -> None:
     # 1) Find the country by name and read its region + common name.
-    name_response = api_client.get("names.common/germany")
-    assert name_response.status_code == 200, (
-        f"Expected 200 from names.common/germany, got {name_response.status_code}"
+    _, name_payload = run_endpoint_check(
+        api_client, assert_within_threshold, "names.common/germany",
+        what="GET names.common/germany",
     )
-    assert_within_threshold(name_response, what="GET names.common/germany")
 
-    matches = CountryValidator.unwrap_objects(name_response.json())
+    matches = CountryValidator.unwrap_objects(name_payload)
     assert matches, "names.common/germany returned no results"
     country = matches[0]
 
